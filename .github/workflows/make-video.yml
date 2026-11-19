@@ -1,0 +1,59 @@
+name: Make bedtime story
+
+on:
+  schedule:
+    - cron: "17 14 * * 1,3,5"   # Mon/Wed/Fri 14:17 UTC
+  workflow_dispatch:             # "Run workflow" button for an extra video any time
+
+permissions:
+  contents: write
+
+concurrency: make-video
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          pip install -r requirements.txt
+
+      - name: Cache voice model
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: kokoro-v1.0
+
+      - name: Make video
+        id: make
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          POLLINATIONS_TOKEN: ${{ secrets.POLLINATIONS_TOKEN }}
+        run: python make_video.py
+
+      - name: Publish for review (GitHub Release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DIR="${{ steps.make.outputs.dir }}"
+          TAG="story-$(date -u +%Y%m%d-%H%M)"
+          gh release create "$TAG" "$DIR/video.mp4" "$DIR/thumbnail.jpg" "$DIR/captions.srt" "$DIR/UPLOAD.txt" "$DIR/story.json" \
+            --title "${{ steps.make.outputs.title }}" \
+            --notes-file "$DIR/UPLOAD.txt"
+
+      - name: Save history (avoids repeat stories)
+        run: |
+          git config user.name "story-bot"
+          git config user.email "story-bot@users.noreply.github.com"
+          git add history.json
+          git commit -m "Add story: ${{ steps.make.outputs.title }}" || exit 0
+          git push

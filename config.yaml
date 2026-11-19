@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------
+# Channel settings: edit these to change what the pipeline makes
+# ---------------------------------------------------------------
+
+channel:
+  name: "Sleepy Forest Stories"        # placeholder; change once the YouTube channel exists
+  audience: "children aged 2 to 6"
+  format: "calm bedtime story"
+  target_minutes: 4                     # narration length per story (3-5 works well)
+
+# Recurring cast. Keeping the same characters in every video builds a
+# brand kids recognise, and gives YouTube clear signs of original work.
+characters:
+  - name: Bramble
+    look: "a small round brown bear cub with a cream belly, tiny ears and a red knitted scarf"
+    personality: "gentle, curious, a little clumsy, always yawning by the end"
+  - name: Pip
+    look: "a tiny grey mouse with big pink ears and a yellow acorn-cap hat"
+    personality: "brave, chatty, loves counting things"
+  - name: Luna
+    look: "a soft white owl with big round golden eyes and a lavender shawl"
+    personality: "wise, kind, speaks slowly, tucks everyone in"
+
+setting: "Whisperwood, a cozy moonlit forest with glowing fireflies, mossy logs and a hollow-tree home"
+
+# Every image prompt gets this appended, so the whole channel looks the same.
+art_style: >-
+  soft watercolor children's picture book illustration, warm pastel colors,
+  gentle evening light, rounded friendly shapes, cozy and calm, no text,
+  no words, no letters, high detail, 16:9
+
+# Each story gently teaches one of these. The pipeline rotates through them
+# and avoids repeating recent topics (see history.json).
+themes:
+  - sharing
+  - being brave in the dark
+  - saying sorry
+  - helping a friend
+  - trying new food
+  - counting stars
+  - colors of the forest
+  - being patient
+  - feeling sad and feeling better
+  - saying thank you
+  - making a new friend
+  - tidying up before bed
+  - the sounds of the night
+  - the changing seasons
+  - taking turns
+  - being gentle with small creatures
+  - missing someone
+  - listening carefully
+
+# ---------------------------------------------------------------
+# Providers
+# ---------------------------------------------------------------
+story:
+  provider: gemini                       # gemini (free tier, needs GEMINI_API_KEY)
+  model: gemini-2.5-flash
+
+images:
+  provider: pollinations                 # pollinations (free, no key) | gemini | placeholder
+  gemini_model: gemini-2.5-flash-image
+  width: 1920
+  height: 1080
+
+voice:
+  provider: kokoro                       # free, runs locally
+  voice: af_heart                        # warm female voice; try bf_emma, af_bella, am_michael
+  speed: 0.88                            # slower = calmer bedtime pace
+
+video:
+  fps: 30
+  music_volume: 0.10                     # background lullaby, relative to narration
