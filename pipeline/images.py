@@ -55,7 +55,7 @@ def _gemini(prompt, model):
             data = part.get("inlineData") or part.get("inline_data")
             if data:
                 return Image.open(io.BytesIO(base64.b64decode(data["data"])))
-    raise RuntimeError("Gemini image failed")
+    raise RuntimeError(f"Gemini image failed: HTTP {r.status_code} {r.text[:300]}")
 
 
 def _placeholder(prompt, w, h, i):
