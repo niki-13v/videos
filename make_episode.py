@@ -50,7 +50,10 @@ def main():
         title = title.replace("Count to 10 with Bramble", f"Count to 10 with Bramble #{number}")
 
     print("2/4 thumbnail", flush=True)
-    E.thumbnail(topic, [s["item"] for s in segs if s.get("item")], bg, os.path.join(out, "thumbnail.jpg"))
+    dull = {"#8d6e63"}  # brown reads muddy in small thumbnails
+    thumb_items = [s["item"] for s in segs if s.get("item") and s["item"].get("color") not in dull]
+    thumb_items.sort(key=lambda it: it.get("kind") in ("ball", "car"))  # rounder characters first
+    E.thumbnail(topic, thumb_items, bg, os.path.join(out, "thumbnail.jpg"))
 
     shorts = []
     if not args.no_shorts:

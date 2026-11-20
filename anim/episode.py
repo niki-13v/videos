@@ -192,8 +192,8 @@ def draw_frame(cr, t, tl, L, topic, bg):
     sx, sy = L.stage
     multi = None
     if seg and seg["items"]:
-        multi, msize = grid(3, (L.box[0], L.box[1] + 60, L.box[2], L.box[3] - 60) if not L.vertical else (30, 330, 1050, 900), cols=3)
-        msize *= 1.4
+        multi, msize = grid(3, (L.box[0] - 60, L.box[1] + 60, L.box[2] + 80, L.box[3] - 60) if not L.vertical else (30, 330, 1050, 900), cols=3)
+        msize *= 1.0
     if seg and seg["reveals"] and t >= seg["reveals"][0][0]:
         fade = 1 - D.ease_out((t - seg["exit"]) / 0.35) if seg["exit"] else 1
         a = min(1, (t - seg["reveals"][0][0]) * 3) * fade
