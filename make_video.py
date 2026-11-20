@@ -72,7 +72,7 @@ def main():
     render.assemble(scene_files, track, video, cfg["video"]["music_volume"])
 
     print("5/5 thumbnail + upload sheet", flush=True)
-    render.thumbnail(imgs[0], st["title"], os.path.join(out_dir, "thumbnail.jpg"))
+    render.thumbnail(imgs[0], st["title"], os.path.join(out_dir, "thumbnail.jpg"), text=st.get("thumbnail_text"))
     with open(os.path.join(out_dir, "UPLOAD.txt"), "w") as f:
         f.write(
             f"TITLE\n{st['title']}\n\nDESCRIPTION\n{st['description']}\n\n"

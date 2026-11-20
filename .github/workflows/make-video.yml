@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "17 14 * * 1,3,5"   # Mon/Wed/Fri 14:17 UTC
   workflow_dispatch:             # "Run workflow" button for an extra video any time
+    inputs:
+      images:
+        description: "Image provider (blank = use config.yaml)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -38,7 +43,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           POLLINATIONS_TOKEN: ${{ secrets.POLLINATIONS_TOKEN }}
-        run: python make_video.py
+        run: python make_video.py ${{ inputs.images && format('--images {0}', inputs.images) || '' }}
 
       - name: Publish for review (GitHub Release)
         env:

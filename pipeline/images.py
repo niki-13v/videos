@@ -9,9 +9,11 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 
-def _fit(img, w, h):
-    """Crop/scale to exactly w x h."""
+def _fit(img, w, h, trim_bottom=0.0):
+    """Crop/scale to exactly w x h. trim_bottom removes a strip (e.g. a corner logo)."""
     img = img.convert("RGB")
+    if trim_bottom:
+        img = img.crop((0, 0, img.width, int(img.height * (1 - trim_bottom))))
     scale = max(w / img.width, h / img.height)
     img = img.resize((round(img.width * scale), round(img.height * scale)), Image.LANCZOS)
     left, top = (img.width - w) // 2, (img.height - h) // 2
@@ -90,10 +92,11 @@ def make_images(cfg, story, out_dir, base_seed):
     for i, scene in enumerate(story["scenes"]):
         path = os.path.join(out_dir, f"scene_{i:02d}.png")
         prompt = f"{scene['image_prompt']}. {cfg['art_style']}"
-        img = None
+        img, trim = None, 0.0
         if provider == "pollinations":
             try:
                 img = _pollinations(prompt, w, h, base_seed + i)
+                trim = 0.06  # free tier stamps a small logo bottom-right
             except RuntimeError:
                 print("  pollinations failed, switching to gemini images", flush=True)
                 provider = "gemini"
@@ -102,7 +105,7 @@ def make_images(cfg, story, out_dir, base_seed):
             time.sleep(6)  # stay inside free-tier per-minute limits
         if img is None:
             img = _placeholder(scene["image_prompt"], w, h, i)
-        _fit(img, w, h).save(path)
+        _fit(img, w, h, trim).save(path)
         paths.append(path)
         print(f"  image {i + 1}/{len(story['scenes'])}", flush=True)
     return paths

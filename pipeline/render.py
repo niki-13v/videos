@@ -52,15 +52,15 @@ def assemble(clips, music, out, music_volume):
     os.remove(listfile)
 
 
-def thumbnail(img_path, title, out, w=1280, h=720):
+def thumbnail(img_path, title, out, w=1280, h=720, text=None):
     """Big friendly title on the best scene image. Short text reads on phones."""
     img = Image.open(img_path).convert("RGB").resize((w, h), Image.LANCZOS)
     shade = Image.new("L", (w, h), 0)
     ImageDraw.Draw(shade).rectangle([0, int(h * 0.62), w, h], fill=150)
     img.paste((15, 15, 40), mask=shade.filter(ImageFilter.GaussianBlur(40)))
-    words = title.split("|")[0].split(":")[0].strip()
+    words = text or title.split("|")[0].split(":")[-1].strip()
     try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 78)
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 96)
     except OSError:
         font = ImageFont.load_default()
     d = ImageDraw.Draw(img)
@@ -72,10 +72,10 @@ def thumbnail(img_path, title, out, w=1280, h=720):
         line += wd + " "
     lines.append(line.strip())
     lines = lines[:2]
-    y = h - 40 - len(lines) * 92
+    y = h - 40 - len(lines) * 110
     for ln in lines:
         x = (w - d.textlength(ln, font=font)) / 2
         d.text((x, y), ln, font=font, fill=(255, 236, 170), stroke_width=6, stroke_fill=(30, 25, 60))
-        y += 92
+        y += 110
     img.save(out, quality=92)
     return out

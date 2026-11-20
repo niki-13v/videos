@@ -26,8 +26,8 @@ setting: "Whisperwood, a cozy moonlit forest with glowing fireflies, mossy logs 
 # Every image prompt gets this appended, so the whole channel looks the same.
 art_style: >-
   soft watercolor children's picture book illustration, warm pastel colors,
-  gentle evening light, rounded friendly shapes, cozy and calm, no text,
-  no words, no letters, high detail, 16:9
+  gentle evening light, rounded friendly shapes, cozy and calm, cute animal
+  characters only, no humans, no text, no words, no letters, 16:9
 
 # Each story gently teaches one of these. The pipeline rotates through them
 # and avoids repeating recent topics (see history.json).

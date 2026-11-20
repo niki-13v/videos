@@ -36,10 +36,12 @@ Rules:
 - Do not reuse these earlier titles or plots:
 {avoid}
 
-For every scene give an image_prompt describing ONLY what is visible:
-which characters (repeat their full look description each time so the
-illustrator draws them consistently), what they are doing, the place,
-time of day. No text or letters in images.
+For every scene give an image_prompt describing ONLY what is visible.
+Start with the character(s), using their full look description word for
+word every time (e.g. "Bramble, a small round brown bear cub with ...").
+They are animals, never human children. Show at most two characters per
+scene. Then what they are doing, the place, time of day. Keep it under
+60 words. No text or letters in images.
 
 YouTube metadata:
 - title: under 70 characters, warm and searchable, e.g. includes
@@ -47,9 +49,11 @@ YouTube metadata:
 - description: 2 short paragraphs for parents (what happens, what it
   teaches), then a line inviting them to subscribe for a new calm story.
 - tags: 10 to 15 relevant search phrases.
+- thumbnail_text: 2 to 4 big friendly words for the thumbnail that sum up
+  this story's hook (e.g. "Bramble's Shy Star"). Not "Bedtime Story".
 
 Return JSON only, matching this shape:
-{{"title": str, "description": str, "tags": [str],
+{{"title": str, "description": str, "tags": [str], "thumbnail_text": str,
   "lesson": str,
   "scenes": [{{"narration": str, "image_prompt": str}}]}}"""
 
