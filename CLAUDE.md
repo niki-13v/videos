@@ -6,7 +6,7 @@
 
 # Project
 
-Automated kids' YouTube video pipeline. `make_video.py` builds one video; GitHub Actions (`.github/workflows/make-video.yml`) runs it on a schedule and publishes each video as a GitHub Release for the owner to review and upload by hand.
+Automated toddler-learning YouTube channel "Bramble & Friends" (@BrambleFriends-p9y). `make_episode.py` builds one episode + 2 Shorts from code-drawn animation (`anim/`); `make_compilation.py` joins episodes. GitHub Actions makes an episode daily and a compilation weekly, published as GitHub Releases for the owner to upload by hand.
 
 # Goal
 

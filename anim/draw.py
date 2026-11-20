@@ -295,7 +295,7 @@ def rays(cr, x, y, t, color, alpha):
     """Spinning sunburst behind a revealed object."""
     if alpha <= 0:
         return
-    c = tuple(0.45 * v + 0.55 for v in hexc(color))  # pastel version reads brighter over sky
+    c = tuple(0.25 * v + 0.75 for v in hexc(color))  # near-white tint: bright over any background
     cr.save()
     cr.translate(x, y)
     cr.rotate(t * 0.8)
@@ -303,7 +303,7 @@ def rays(cr, x, y, t, color, alpha):
         cr.move_to(0, 0)
         cr.arc(0, 0, 2400, k * math.pi / 8, k * math.pi / 8 + math.pi / 16)
         cr.close_path()
-        cr.set_source_rgba(*c, 0.6 * alpha)
+        cr.set_source_rgba(*c, 0.5 * alpha)
         cr.fill()
     glow = cairo.RadialGradient(0, 0, 0, 0, 0, 380)
     glow.add_color_stop_rgba(0, 1, 1, 1, 0.8 * alpha)
@@ -390,3 +390,107 @@ def elastic(p):
 def ease_out(p):
     p = max(0.0, min(1.0, p))
     return 1 - (1 - p) ** 3
+
+
+def _sky(cr, w, h, top, bot):
+    g = cairo.LinearGradient(0, 0, 0, h)
+    g.add_color_stop_rgb(0, *hexc(top))
+    g.add_color_stop_rgb(1, *hexc(bot))
+    cr.set_source(g)
+    cr.paint()
+
+
+def _clouds(cr, w, h, t):
+    for i, (cx, cy, sc) in enumerate([(0.15, 0.12, 1.0), (0.5, 0.08, 0.8), (0.72, 0.22, 0.6)]):
+        x = (cx * w + t * 25 * (1 + i * 0.3)) % (w + 400) - 200
+        for dx, dy, r in [(-60, 10, 55), (0, -15, 70), (60, 10, 55), (0, 20, 50)]:
+            ellipse(cr, x + dx * sc, cy * h + dy * sc, r * sc * 1.2, r * sc, (1, 1, 1), None)
+
+
+def bg_beach(cr, w, h, t):
+    _sky(cr, w, h, "#4fc3f7", "#e1f5fe")
+    ellipse(cr, w * 0.85, h * 0.14, 80, 80, hexc("#ffd23f"), hexc("#f2a20c"), 6)
+    _clouds(cr, w, h, t)
+    sea = h * 0.6
+    cr.rectangle(0, sea, w, h)
+    cr.set_source_rgb(*hexc("#29b6f6"))
+    cr.fill()
+    for row in range(3):
+        y = sea + 25 + row * 45
+        cr.move_to(0, y)
+        for x in range(0, w + 21, 20):
+            cr.line_to(x, y + 8 * math.sin(x / 40 + t * 2 + row))
+        cr.set_source_rgba(1, 1, 1, 0.6)
+        cr.set_line_width(5)
+        cr.stroke()
+    cr.move_to(0, h)
+    for x in range(0, w + 41, 40):
+        cr.line_to(x, h * 0.78 + 18 * math.sin(x / 250))
+    cr.line_to(w, h)
+    cr.close_path()
+    cr.set_source_rgb(*hexc("#ffe0a3"))
+    cr.fill()
+    rnd = random.Random(5)
+    for _ in range(9):
+        sx, sy = rnd.uniform(0, w), rnd.uniform(h * 0.86, h * 0.98)
+        cr.save()
+        cr.translate(sx, sy)
+        cr.set_source_rgb(*hexc(rnd.choice(["#ff8a80", "#ffffff", "#ffd180"])))
+        cr.arc(0, 0, 16, math.pi, 2 * math.pi)
+        cr.fill()
+        cr.restore()
+
+
+def bg_playroom(cr, w, h, t):
+    cr.set_source_rgb(*hexc("#fff3e0"))
+    cr.paint()
+    for k in range(0, w, 120):
+        cr.rectangle(k, 0, 60, h * 0.72)
+        cr.set_source_rgb(*hexc("#ffe0b2"))
+        cr.fill()
+    # window
+    wx, wy, ww, wh = w * 0.06, h * 0.1, w * 0.2, h * 0.32
+    cr.rectangle(wx, wy, ww, wh)
+    cr.set_source_rgb(*hexc("#81d4fa"))
+    cr.fill_preserve()
+    cr.set_source_rgb(*hexc("#ffffff"))
+    cr.set_line_width(16)
+    cr.stroke()
+    cr.move_to(wx + ww / 2, wy)
+    cr.line_to(wx + ww / 2, wy + wh)
+    cr.move_to(wx, wy + wh / 2)
+    cr.line_to(wx + ww, wy + wh / 2)
+    cr.stroke()
+    # bunting
+    cols = ["#e53935", "#fdd835", "#1e88e5", "#43a047", "#8e24aa", "#fb8c00"]
+    n = 14
+    for k in range(n):
+        x0 = w * 0.3 + k * (w * 0.68 / n)
+        sway = 4 * math.sin(t * 2 + k)
+        cr.move_to(x0, h * 0.06)
+        cr.line_to(x0 + w * 0.68 / n, h * 0.06)
+        cr.line_to(x0 + w * 0.34 / n, h * 0.14 + sway)
+        cr.close_path()
+        cr.set_source_rgb(*hexc(cols[k % 6]))
+        cr.fill()
+    # floor + rug
+    cr.rectangle(0, h * 0.72, w, h)
+    cr.set_source_rgb(*hexc("#d7a86e"))
+    cr.fill()
+    for k in range(0, w, 160):
+        cr.move_to(k, h * 0.72)
+        cr.line_to(k - 60, h)
+        cr.set_source_rgba(0, 0, 0, 0.08)
+        cr.set_line_width(4)
+        cr.stroke()
+    ellipse(cr, w * 0.55, h * 0.9, w * 0.4, h * 0.08, hexc("#ce93d8"), None)
+    ellipse(cr, w * 0.55, h * 0.9, w * 0.32, h * 0.055, hexc("#e1bee7"), None)
+
+
+def scene_bg(cr, kind, w, h, t):
+    if kind == "beach":
+        bg_beach(cr, w, h, t)
+    elif kind == "playroom":
+        bg_playroom(cr, w, h, t)
+    else:
+        background(cr, w, h, t)

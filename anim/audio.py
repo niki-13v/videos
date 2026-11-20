@@ -1,29 +1,46 @@
 """Speech, sound effects and an upbeat original tune, mixed on one timeline."""
 import os
-import sys
+import urllib.request
 
 import numpy as np
 
 SR = 44100
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+MODEL_DIR = os.environ.get("KOKORO_DIR", os.path.join(os.path.dirname(__file__), "..", "models"))
+MODEL_BASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
+
+
+def _ensure_models():
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    paths = []
+    for f in ("kokoro-v1.0.onnx", "voices-v1.0.bin"):
+        p = os.path.join(MODEL_DIR, f)
+        if not os.path.exists(p):
+            print(f"  downloading {f}", flush=True)
+            urllib.request.urlretrieve(MODEL_BASE + f, p)
+        paths.append(p)
+    return paths
 
 
 class Mixer:
     def __init__(self, seconds):
         self.buf = np.zeros(int(seconds * SR) + SR * 5, dtype=np.float32)
         self.speech = np.zeros_like(self.buf)
+        self.by = {}
 
-    def add(self, t, samples, gain=1.0, speech=False):
+    def add(self, t, samples, gain=1.0, speaker=None):
         i = int(t * SR)
         n = min(len(samples), len(self.buf) - i)
         self.buf[i : i + n] += samples[:n] * gain
-        if speech:
+        if speaker:
             self.speech[i : i + n] += samples[:n]
+            ch = self.by.setdefault(speaker, np.zeros_like(self.buf))
+            ch[i : i + n] += samples[:n]
 
-    def mouth_track(self, fps, n_frames):
-        """Per-frame mouth openness 0..1 from the speech loudness."""
+    def mouth_track(self, fps, n_frames, speaker):
+        """Per-frame mouth openness 0..1 from one speaker's loudness."""
         hop = SR // fps
-        env = np.array([np.sqrt(np.mean(self.speech[k * hop : (k + 1) * hop] ** 2)) for k in range(n_frames)])
+        sp = self.by.get(speaker, np.zeros_like(self.buf))
+        env = np.array([np.sqrt(np.mean(sp[k * hop : (k + 1) * hop] ** 2)) for k in range(n_frames)])
         if env.max() > 0:
             env = np.clip(env / (np.percentile(env[env > 0], 90) + 1e-9), 0, 1)
         return env
@@ -43,7 +60,6 @@ class Mixer:
 class Voice:
     def __init__(self, voice="af_bella", speed=1.0):
         from kokoro_onnx import Kokoro
-        from pipeline.voice import _ensure_models
 
         self.k = Kokoro(*_ensure_models())
         self.voice, self.speed = voice, speed
@@ -88,6 +104,53 @@ def sfx_boing():
     t = _t(0.4)
     f = 220 + 160 * np.sin(2 * np.pi * 9 * t) * np.exp(-t * 5)
     return (np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 6) * 0.5).astype(np.float32)
+
+
+# Public-domain nursery tunes: (semitones from root, beats)
+MELODIES = {
+    "old_macdonald": [(0, 1), (0, 1), (0, 1), (-5, 1), (-3, 1), (-3, 1), (-5, 2), (4, 1), (4, 1), (2, 1), (2, 1), (0, 4)],
+    "twinkle": [(0, 1), (0, 1), (7, 1), (7, 1), (9, 1), (9, 1), (7, 2), (5, 1), (5, 1), (4, 1), (4, 1), (2, 1), (2, 1), (0, 2)],
+    "row_row": [(0, 1.5), (0, 1.5), (0, 1), (2, 0.5), (4, 1.5), (4, 1), (2, 0.5), (4, 1), (5, 0.5), (7, 3)],
+    "london_bridge": [(7, 1.5), (9, 0.5), (7, 1), (5, 1), (4, 1), (5, 1), (7, 2), (2, 1), (4, 1), (5, 2), (4, 1), (5, 1), (7, 2)],
+}
+
+
+def music_tune(seconds, tune, seed=0, beat=0.42):
+    """A public-domain nursery melody on xylophone with bass + shaker, looped."""
+    notes = MELODIES[tune]
+    root = 261.63 * 2 ** (int(np.random.default_rng(seed).integers(-2, 3)) / 12)
+
+    def tone(freq, dur, decay, vol, harm=(1, 0.3)):
+        t = _t(dur)
+        w = sum(a * np.sin(2 * np.pi * freq * (k + 1) * t) for k, a in enumerate(harm))
+        return (w * np.exp(-t * decay) * (1 - np.exp(-t * 300)) * vol).astype(np.float32)
+
+    phrase_beats = sum(b for _, b in notes)
+    phrase_beats = int(np.ceil(phrase_beats / 4) * 4)
+    loop = np.zeros(int(phrase_beats * beat * SR) + SR, dtype=np.float32)
+    pos = 0.0
+    for semi, b in notes:
+        x = tone(root * 2 * 2 ** (semi / 12), min(1.2, b * beat + 0.3), 6, 0.28, (1, 0.25, 0.1))
+        s = int(pos * beat * SR)
+        loop[s : s + len(x)] += x
+        pos += b
+    for k in range(phrase_beats):
+        s = int(k * beat * SR)
+        bass_semi = 0 if (k // 4) % 2 == 0 else -5
+        x = tone(root / 2 * 2 ** (bass_semi / 12), beat * 0.9, 5, 0.3, (1, 0.5, 0.2))
+        loop[s : s + len(x)] += x
+        n = np.random.default_rng(k).normal(size=int(0.04 * SR)).astype(np.float32)
+        n *= np.exp(-_t(0.04) * 80).astype(np.float32) * 0.05
+        sh = s + int(beat / 2 * SR)
+        loop[sh : sh + len(n)] += n
+    loop_len = int(phrase_beats * beat * SR)
+    total = int(seconds * SR)
+    out = np.zeros(total + len(loop), dtype=np.float32)
+    for s in range(0, total, loop_len):
+        out[s : s + len(loop)] += loop
+    out = out[:total]
+    out[-SR:] *= np.linspace(1, 0, SR)
+    return out / (np.max(np.abs(out)) + 1e-9) * 0.22
 
 
 def music_bouncy(seconds, seed=0):

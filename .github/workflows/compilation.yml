@@ -1,0 +1,50 @@
+name: Weekly compilation
+
+on:
+  schedule:
+    - cron: "47 15 * * 0"        # Sundays 15:47 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: make-video
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core libcairo2-dev pkg-config
+          pip install -r requirements.txt
+      - name: Download recent episodes (until 30+ min)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p eps
+          total=0; n=0
+          for tag in $(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '.[].tag_name | select(startswith("ep-"))'); do
+            gh release download "$tag" -p episode.mp4 -O "eps/$tag.mp4"
+            d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "eps/$tag.mp4")
+            total=$(python3 -c "print($total + $d)"); n=$((n+1))
+            python3 -c "import sys; sys.exit(0 if $total >= 1800 else 1)" && break
+          done
+          echo "episodes=$n minutes=$(python3 -c "print(round($total/60,1))")"
+          [ "$n" -ge 5 ] || { echo "Not enough episodes yet"; exit 1; }
+      - name: Make compilation
+        id: make
+        run: python make_compilation.py $(ls eps/*.mp4 | sort) --out output/comp
+      - name: Publish for review (GitHub Release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "comp-$(date -u +%Y%m%d)" output/comp/compilation.mp4 output/comp/thumbnail.jpg output/comp/UPLOAD.txt \
+            --title "${{ steps.make.outputs.title }}" --notes-file output/comp/UPLOAD.txt
