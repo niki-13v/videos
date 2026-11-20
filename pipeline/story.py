@@ -55,16 +55,15 @@ Return JSON only, matching this shape:
 
 
 def write_story(cfg, theme, recent_titles):
-    key = os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise SystemExit("GEMINI_API_KEY is not set (get a free one at aistudio.google.com)")
+    from . import gemini
+
     body = {
         "contents": [{"parts": [{"text": _prompt(cfg, theme, recent_titles)}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 1.0},
     }
-    url = API.format(model=cfg["story"]["model"])
+    url = gemini.url(gemini.pick("text", cfg["story"]["model"]))
     for attempt in range(5):
-        r = requests.post(url, headers={"x-goog-api-key": key}, json=body, timeout=180)
+        r = requests.post(url, headers=gemini.headers(), json=body, timeout=180)
         if r.status_code in (429, 500, 503):
             time.sleep(20 * (attempt + 1))
             continue

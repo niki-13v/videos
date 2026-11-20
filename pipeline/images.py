@@ -36,14 +36,15 @@ def _pollinations(prompt, w, h, seed):
 
 
 def _gemini(prompt, model):
-    key = os.environ["GEMINI_API_KEY"]
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    from . import gemini
+
+    url = gemini.url(gemini.pick("image", model))
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": "16:9"}},
     }
     for attempt in range(5):
-        r = requests.post(url, headers={"x-goog-api-key": key}, json=body, timeout=180)
+        r = requests.post(url, headers=gemini.headers(), json=body, timeout=180)
         if r.status_code in (429, 500, 503):
             time.sleep(30 * (attempt + 1))
             continue
@@ -89,12 +90,17 @@ def make_images(cfg, story, out_dir, base_seed):
     for i, scene in enumerate(story["scenes"]):
         path = os.path.join(out_dir, f"scene_{i:02d}.png")
         prompt = f"{scene['image_prompt']}. {cfg['art_style']}"
+        img = None
         if provider == "pollinations":
-            img = _pollinations(prompt, w, h, base_seed + i)
-        elif provider == "gemini":
+            try:
+                img = _pollinations(prompt, w, h, base_seed + i)
+            except RuntimeError:
+                print("  pollinations failed, switching to gemini images", flush=True)
+                provider = "gemini"
+        if img is None and provider == "gemini":
             img = _gemini(prompt, icfg["gemini_model"])
             time.sleep(6)  # stay inside free-tier per-minute limits
-        else:
+        if img is None:
             img = _placeholder(scene["image_prompt"], w, h, i)
         _fit(img, w, h).save(path)
         paths.append(path)

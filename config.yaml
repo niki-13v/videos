@@ -56,11 +56,11 @@ themes:
 # ---------------------------------------------------------------
 story:
   provider: gemini                       # gemini (free tier, needs GEMINI_API_KEY)
-  model: gemini-2.5-flash
+  model: auto                            # auto = newest free Gemini Flash model
 
 images:
   provider: pollinations                 # pollinations (free, no key) | gemini | placeholder
-  gemini_model: gemini-2.5-flash-image
+  gemini_model: auto
   width: 1920
   height: 1080
 
