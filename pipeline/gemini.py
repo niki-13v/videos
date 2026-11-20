@@ -52,8 +52,8 @@ def pick(kind, preferred=None):
         pool = [n for n in pool if "image" not in n]
     if not pool:
         raise RuntimeError(f"No Gemini {kind} model available. Models: {', '.join(names)}")
-    # newest version first; stable before preview; full flash before lite
-    pool.sort(key=lambda n: (-_version(n), "preview" in n, "lite" in n, len(n)))
+    # full flash before lite; then newest version; stable before preview
+    pool.sort(key=lambda n: ("lite" in n, -_version(n), "preview" in n, len(n)))
     print(f"    using {pool[0]}", flush=True)
     return pool[0]
 
