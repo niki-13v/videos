@@ -193,3 +193,52 @@ def music_bouncy(seconds, seed=0):
     out = out[:total]
     out[-SR:] *= np.linspace(1, 0, SR)
     return out / (np.max(np.abs(out)) + 1e-9) * 0.22
+
+
+# ------------------------------------------------------------------ animal voices
+# kind: (voice, phonemes, speed, semitones, effect)
+ANIMAL_VOICES = {
+    "cow": ("am_michael", "mˈuːːː! mˈuːːː!", 0.75, -3, "warm"),
+    "pig": ("am_puck", "ˈɔɪŋk! ˈɔɪŋk!", 1.0, 3, None),
+    "duck": ("af_sky", "kwˈæk! kwˈæk!", 1.05, 4, "nasal"),
+    "cat": ("af_nicole", "mɪˈaʊːː! mɪˈaʊːː!", 0.85, 3, None),
+    "dog": ("am_puck", "wˈʊf! wˈʊf!", 1.0, -1, None),
+    "sheep": ("af_bella", "bˈɑːːː! bˈɑːːː!", 0.8, 2, "bleat"),
+    "chick": ("af_sky", "tʃˈiːp! tʃˈiːp!", 1.1, 8, None),
+    "frog": ("am_michael", "ɹˈɪbɪt! ɹˈɪbɪt!", 0.95, -2, "croak"),
+    "lion": ("am_onyx", "ɹˈɔːːːɹ!", 0.7, -5, "growl"),
+}
+_VOICE_CACHE = {}
+
+
+def _resample_pitch(s, semis):
+    """Shift pitch (and tempo) by resampling: low = big & slow, high = small & quick."""
+    f = 2 ** (semis / 12)
+    idx = np.arange(0, len(s) - 1, f)
+    return np.interp(idx, np.arange(len(s)), s).astype(np.float32)
+
+
+def animal_sound(kind):
+    from kokoro_onnx import Kokoro
+
+    voice, ph, speed, semis, fx = ANIMAL_VOICES[kind]
+    if "k" not in _VOICE_CACHE:
+        _VOICE_CACHE["k"] = Kokoro(*_ensure_models())
+    s, sr = _VOICE_CACHE["k"].create(ph, voice=voice, speed=speed, lang="en-us", is_phonemes=True)
+    s = np.interp(np.arange(0, len(s), sr / SR), np.arange(len(s)), s).astype(np.float32)
+    s = _resample_pitch(s, semis)
+    t = np.arange(len(s)) / SR
+    if fx == "bleat":
+        s *= 1 + 0.55 * np.sin(2 * np.pi * 8 * t)
+    elif fx == "growl":
+        s = np.tanh(s * 3) * 0.6 + np.random.default_rng(0).normal(size=len(s)).astype(np.float32) * 0.02 * np.abs(s) * 10
+    elif fx == "croak":
+        s *= 1 + 0.5 * np.sign(np.sin(2 * np.pi * 30 * t))
+    elif fx == "nasal":
+        d = int(0.0025 * SR)
+        s = s + 0.6 * np.concatenate([np.zeros(d, np.float32), s[:-d]])
+    elif fx == "warm":
+        s = np.convolve(s, np.ones(6) / 6, mode="same").astype(np.float32)
+    nz = np.where(np.abs(s) > 0.01)[0]
+    s = s[nz[0] : nz[-1] + 1] if len(nz) else s
+    return (s / (np.max(np.abs(s)) + 1e-9) * 0.9).astype(np.float32)

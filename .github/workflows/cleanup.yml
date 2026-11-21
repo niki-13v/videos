@@ -1,0 +1,14 @@
+name: Delete old-format releases (one-time)
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in ep-20261120-0926 ep-20261120-0933; do
+            gh release delete "$tag" --cleanup-tag --yes -R "${{ github.repository }}" && echo "deleted $tag" || true
+          done

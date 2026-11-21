@@ -31,9 +31,9 @@ NUMBERS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight
 TOPICS = {
     "colors": dict(title=("Learn", "Colors!"), music="twinkle", playlist="Learn Colors"),
     "shapes": dict(title=("Learn", "Shapes!"), music="london_bridge", playlist="Learn Shapes"),
-    "fruits": dict(title=("Yummy", "Fruits!"), music="row_row", playlist="Fruits and Food"),
+    "fruits": dict(title=("Yummy", "Fruits!"), music="mary_lamb", playlist="Fruits and Food"),
     "animals": dict(title=("Animal", "Sounds!"), music="old_macdonald", playlist="Animal Sounds"),
-    "counting": dict(title=("Count", "to 10!"), music="bouncy", playlist="Counting 1 to 10"),
+    "counting": dict(title=("Count", "to 10!"), music=None, playlist="Counting 1 to 10"),
 }
 
 
@@ -81,7 +81,7 @@ def segments(topic, rnd: random.Random, n=None):
             item = dict(group="animal", kind=kind, color="#ffffff", noun=name)
             steps = [("enter",), ("b", "Who is this?"), ("think", 1.6), ("reveal", name, "#ff7043"),
                      ("b", f"It's a {name}!"), ("b", f"What does the {name} say?"), ("think", 1.6),
-                     ("reveal", sound.split("!")[0] + "!", "#ff7043"), ("i", sound), ("b", f"The {name} says {sound.split('!')[0].lower()}!"),
+                     ("reveal", sound.split("!")[0] + "!", "#ff7043"), ("sound", kind), ("b", f"The {name} says {sound.split('!')[0].lower()}!"),
                      ("exit",)]
             out.append(dict(item=item, steps=steps, chapter=name.capitalize()))
         return out
@@ -164,7 +164,7 @@ def find_segments(topic, rnd: random.Random, n=6):
             j = rnd.randrange(3)
             snd = an[j][2].split("!")[0].lower()
             q, word = f"Who says {snd}?", an[j][1]
-            lines = [f"The {an[j][1]}!", ("i", an[j][2])]
+            lines = [f"The {an[j][1]}!", ("sound", an[j][0])]
         col = items[j]["color"] if items[j]["group"] != "animal" else "#ff7043"
         steps = [("enter",), ("b", q), ("think", 2.0), ("pick", word, col)]
         steps += [st if isinstance(st, tuple) else ("b", st) for st in lines]

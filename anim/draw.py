@@ -13,13 +13,38 @@ def hexc(h):
     return tuple(int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
 
 
+SHADE = True
+
+
+def shade_source(cr, c, x0=None, y0=None, x1=None, y1=None):
+    """Soft 3D look: light from top-left, darker toward bottom-right (uses current path bounds)."""
+    if not SHADE or c in ((1, 1, 1),) and False:
+        cr.set_source_rgb(*c)
+        return
+    if x0 is None:
+        x0, y0, x1, y1 = cr.path_extents()
+    w, h = max(1, x1 - x0), max(1, y1 - y0)
+    cx, cy = x0 + w * 0.32, y0 + h * 0.28
+    r = max(w, h) * 1.05
+    g = cairo.RadialGradient(cx, cy, r * 0.04, cx, cy, r)
+    light = tuple(min(1, v * 0.6 + 0.4) for v in c)
+    dark = tuple(v * 0.78 for v in c)
+    g.add_color_stop_rgb(0, *light)
+    g.add_color_stop_rgb(0.45, *c)
+    g.add_color_stop_rgb(1, *dark)
+    cr.set_source(g)
+
+
 def ellipse(cr, x, y, rx, ry, fill, stroke=OUTLINE, lw=6):
     cr.save()
     cr.translate(x, y)
     cr.scale(rx, ry)
     cr.arc(0, 0, 1, 0, 2 * math.pi)
     cr.restore()
-    cr.set_source_rgb(*fill)
+    if stroke and max(rx, ry) > 14 and fill not in ((1, 1, 1),):
+        shade_source(cr, fill)
+    else:
+        cr.set_source_rgb(*fill)
     if stroke:
         cr.fill_preserve()
         cr.set_source_rgb(*stroke)
@@ -130,7 +155,7 @@ def bramble(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0):
     cr.line_to(50 + flap, hy + 240)
     cr.line_to(30, hy + 155)
     cr.close_path()
-    cr.set_source_rgb(*SCARF)
+    shade_source(cr, SCARF)
     cr.fill_preserve()
     cr.set_source_rgb(*OUTLINE)
     cr.stroke()
@@ -178,7 +203,7 @@ def obj(cr, kind, color, x, y, s, t, mouth=0.0, blink=False):
         cr.line_to(s * 0.12, s * 1.15)
         cr.line_to(0, s * 1.02)
         cr.close_path()
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill()
         ellipse(cr, -s * 0.38, -s * 0.5, s * 0.14, s * 0.26, (1, 1, 1), None)
         face(cr, 0, 0, s * 0.85, mouth, blink)
@@ -190,7 +215,7 @@ def obj(cr, kind, color, x, y, s, t, mouth=0.0, blink=False):
             cr.line_to(r * math.cos(a), r * math.sin(a))
         cr.close_path()
         cr.set_line_join(cairo.LINE_JOIN_ROUND)
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill_preserve()
         cr.set_source_rgb(*OUTLINE)
         cr.set_line_width(7)
@@ -219,7 +244,7 @@ def obj(cr, kind, color, x, y, s, t, mouth=0.0, blink=False):
         cr.line_to(s * 1.15, -s * 0.5)
         cr.line_to(s * 1.15, s * 0.5)
         cr.close_path()
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill_preserve()
         cr.set_source_rgb(*OUTLINE)
         cr.set_line_width(6)
@@ -494,3 +519,117 @@ def scene_bg(cr, kind, w, h, t):
         bg_playroom(cr, w, h, t)
     else:
         background(cr, w, h, t)
+    scenery(cr, kind, w, h, t)
+
+
+# ------------------------------------------------------------------ scenery details
+def tree(cr, x, y, s, t):
+    sway = math.sin(t * 1.2 + x) * 0.02
+    cr.save()
+    cr.translate(x, y)
+    cr.rotate(sway)
+    cr.rectangle(-22 * s, -150 * s, 44 * s, 150 * s)
+    shade_source(cr, hexc("#8d5a33"))
+    cr.fill_preserve()
+    cr.set_source_rgb(*OUTLINE)
+    cr.set_line_width(5)
+    cr.stroke()
+    for dx, dy, r in [(-70, -190, 85), (70, -190, 85), (0, -260, 100), (0, -170, 90)]:
+        ellipse(cr, dx * s, dy * s, r * s, r * s * 0.92, hexc("#4caf50"))
+    for dx, dy in [(-50, -220), (40, -270), (60, -170)]:
+        ellipse(cr, dx * s, dy * s, 12 * s, 12 * s, hexc("#e53935"), OUTLINE, 3)
+    cr.restore()
+
+
+def bush(cr, x, y, s):
+    for dx, r in [(-45, 45), (0, 60), (45, 45)]:
+        ellipse(cr, x + dx * s, y - r * s * 0.6, r * s, r * s * 0.8, hexc("#66bb6a"))
+
+
+def butterfly(cr, x, y, s, t, color):
+    flap = abs(math.sin(t * 14))
+    c = hexc(color)
+    cr.save()
+    cr.translate(x, y)
+    for side in (-1, 1):
+        cr.save()
+        cr.scale(side * (0.3 + 0.7 * flap), 1)
+        ellipse(cr, 18 * s, -10 * s, 18 * s, 15 * s, c, OUTLINE, 3)
+        ellipse(cr, 14 * s, 12 * s, 12 * s, 10 * s, c, OUTLINE, 3)
+        cr.restore()
+    ellipse(cr, 0, 0, 5 * s, 18 * s, OUTLINE, None)
+    cr.restore()
+
+
+def bird(cr, x, y, s, t):
+    f = math.sin(t * 10) * 12 * s
+    cr.set_source_rgb(*OUTLINE)
+    cr.set_line_width(5)
+    cr.move_to(x - 30 * s, y - f)
+    cr.curve_to(x - 15 * s, y - 15 * s, x - 5 * s, y - 10 * s, x, y)
+    cr.curve_to(x + 5 * s, y - 10 * s, x + 15 * s, y - 15 * s, x + 30 * s, y - f)
+    cr.stroke()
+
+
+def palm(cr, x, y, s, t):
+    cr.save()
+    cr.translate(x, y)
+    for k in range(9):
+        ellipse(cr, math.sin(k * 0.25) * 30 * s, -k * 45 * s, 26 * s, 28 * s, hexc("#a1887f"), OUTLINE, 4)
+    top = (math.sin(8 * 0.25) * 30 * s, -400 * s)
+    for a in range(6):
+        ang = -math.pi / 2 + (a - 2.5) * 0.55 + math.sin(t * 1.5 + a) * 0.04
+        cr.save()
+        cr.translate(*top)
+        cr.rotate(ang + math.pi / 2)
+        cr.move_to(0, 0)
+        cr.curve_to(-60 * s, -60 * s, -40 * s, -170 * s, 0, -210 * s)
+        cr.curve_to(40 * s, -170 * s, 60 * s, -60 * s, 0, 0)
+        shade_source(cr, hexc("#43a047"))
+        cr.fill_preserve()
+        cr.set_source_rgb(*OUTLINE)
+        cr.set_line_width(4)
+        cr.stroke()
+        cr.restore()
+    for dx in (-18, 18):
+        ellipse(cr, top[0] + dx * s, top[1] + 20 * s, 20 * s, 20 * s, hexc("#795548"), OUTLINE, 3)
+    cr.restore()
+
+
+def toy_shelf(cr, x, y, s, t):
+    cr.rectangle(x, y, 380 * s, 22 * s)
+    shade_source(cr, hexc("#a1887f"))
+    cr.fill()
+    cols = ["#e53935", "#1e88e5", "#fdd835", "#43a047"]
+    for k, c in enumerate(cols):
+        bx = x + 30 * s + k * 85 * s
+        cr.rectangle(bx, y - 70 * s, 68 * s, 70 * s)
+        shade_source(cr, hexc(c))
+        cr.fill_preserve()
+        cr.set_source_rgb(*OUTLINE)
+        cr.set_line_width(4)
+        cr.stroke()
+        cr.select_font_face("DejaVu Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(48 * s)
+        cr.set_source_rgb(1, 1, 1)
+        cr.move_to(bx + 18 * s, y - 18 * s)
+        cr.show_text("ABCD"[k])
+
+
+def scenery(cr, kind, w, h, t):
+    """Moving details layered on top of the base background."""
+    if kind == "beach":
+        palm(cr, w * 0.07, h * 0.86, 1.0, t)
+        bird(cr, (w * 0.3 + t * 60) % (w + 200) - 100, h * 0.2 + 10 * math.sin(t), 1.0, t)
+        bird(cr, (w * 0.5 + t * 50) % (w + 200) - 100, h * 0.26 + 10 * math.sin(t + 1), 0.8, t + 0.3)
+    elif kind == "playroom":
+        toy_shelf(cr, w * 0.3, h * 0.66, 1.0, t)
+    else:
+        tree(cr, w * 0.04, h * 0.74, 1.0, t)
+        tree(cr, w * 0.97, h * 0.72, 0.9, t)
+        bush(cr, w * 0.4, h * 0.79, 1.0)
+        bush(cr, w * 0.85, h * 0.8, 0.8)
+        for k, col in enumerate(["#ff7043", "#ab47bc", "#29b6f6"]):
+            bx = w * (0.3 + 0.25 * k) + 160 * math.sin(t * 0.5 + k * 2)
+            by = h * (0.25 + 0.08 * k) + 60 * math.sin(t * 1.3 + k)
+            butterfly(cr, bx, by, 1.0, t + k, col)

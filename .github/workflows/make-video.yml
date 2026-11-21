@@ -5,20 +5,38 @@ on:
     - cron: "23 13 * * *"        # every day 13:23 UTC
   workflow_dispatch:
     inputs:
-      topic:
-        description: "Topic (blank = next in rotation): colors, animals, shapes, counting, fruits"
+      topics:
+        description: "Comma list (blank = next in rotation). colors, animals, shapes, counting, fruits, dance-fruits, dance-animals, dance-mixed, dance-shapes"
         required: false
         default: ""
 
 permissions:
   contents: write
 
-concurrency: make-video
-
 jobs:
-  make:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    outputs:
+      topics: ${{ steps.p.outputs.topics }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: |
+          if [ -n "${{ inputs.topics }}" ]; then
+            list="${{ inputs.topics }}"
+          else
+            list=$(python3 -c "import json,os;h=json.load(open('episodes.json')) if os.path.exists('episodes.json') else [];import re;src=open('make_episode.py').read();exec(src[src.index('ROTATION ='):src.index('BACKGROUNDS')]);print(ROTATION[len(h)%len(ROTATION)])")
+          fi
+          echo "topics=$(python3 -c "import json,sys;print(json.dumps([t.strip() for t in sys.argv[1].split(',') if t.strip()]))" "$list")" >> "$GITHUB_OUTPUT"
+
+  make:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        topic: ${{ fromJson(needs.plan.outputs.topics) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,27 +46,33 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core libcairo2-dev pkg-config
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core libcairo2-dev pkg-config fluidsynth fluid-soundfont-gm
           pip install -r requirements.txt
       - name: Cache voice model
         uses: actions/cache@v4
         with:
           path: models
           key: kokoro-v1.0
-      - name: Make episode + shorts
+      - name: Make video + shorts
         id: make
-        run: python make_episode.py ${{ inputs.topic && format('--topic {0}', inputs.topic) || '' }}
+        run: python make_episode.py --topic ${{ matrix.topic }}
       - name: Publish for review (GitHub Release)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           DIR="${{ steps.make.outputs.dir }}"
-          gh release create "ep-$(date -u +%Y%m%d-%H%M)" "$DIR"/* \
+          gh release create "${{ steps.make.outputs.tag }}" "$DIR"/* \
             --title "${{ steps.make.outputs.title }}" --notes-file "$DIR/UPLOAD.txt"
       - name: Save history
         run: |
           git config user.name "episode-bot"
           git config user.email "episode-bot@users.noreply.github.com"
-          git add episodes.json
-          git commit -m "Episode: ${{ steps.make.outputs.title }}" || exit 0
-          git pull --rebase -q origin main && git push
+          entry=$(python3 -c "import json;print(json.dumps(json.load(open('episodes.json'))[-1]))")
+          for i in 1 2 3 4 5; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            python3 -c "import json,sys,os;p='episodes.json';h=json.load(open(p)) if os.path.exists(p) else [];h.append(json.loads(sys.argv[1]));json.dump(h,open(p,'w'),indent=2)" "$entry"
+            git add episodes.json
+            git commit -qm "Video: ${{ steps.make.outputs.title }}"
+            git push -q && break
+            sleep $((RANDOM % 10 + 3))
+          done

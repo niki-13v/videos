@@ -3,7 +3,7 @@ import math
 
 import cairo
 
-from .draw import OUTLINE, ellipse, face, hexc, obj
+from .draw import OUTLINE, ellipse, face, hexc, obj, shade_source
 
 WHITE, BLACK, PINKC = (1, 1, 1), (0.1, 0.07, 0.06), hexc("#f8a5b6")
 
@@ -14,7 +14,7 @@ def _poly(cr, pts, fill, lw=6):
         cr.line_to(*p)
     cr.close_path()
     cr.set_line_join(cairo.LINE_JOIN_ROUND)
-    cr.set_source_rgb(*fill)
+    shade_source(cr, fill)
     cr.fill_preserve()
     cr.set_source_rgb(*OUTLINE)
     cr.set_line_width(lw)
@@ -28,7 +28,7 @@ def _rrect(cr, x, y, w, h, r, fill, lw=6):
     cr.arc(x + r, y + h - r, r, math.pi / 2, math.pi)
     cr.arc(x + r, y + r, r, math.pi, 1.5 * math.pi)
     cr.close_path()
-    cr.set_source_rgb(*fill)
+    shade_source(cr, fill)
     cr.fill_preserve()
     cr.set_source_rgb(*OUTLINE)
     cr.set_line_width(lw)
@@ -83,7 +83,7 @@ def shape(cr, kind, c, s, mouth, blink):
         cr.move_to(0, s * 0.95)
         cr.curve_to(-s * 1.4, s * 0.0, -s * 0.9, -s * 1.15, 0, -s * 0.45)
         cr.curve_to(s * 0.9, -s * 1.15, s * 1.4, s * 0.0, 0, s * 0.95)
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill_preserve()
         cr.set_source_rgb(*OUTLINE)
         cr.set_line_width(7)
@@ -100,7 +100,7 @@ def thing(cr, kind, c, s, t, mouth, blink):
         cr.move_to(-s * 1.0, -s * 0.5)
         cr.curve_to(-s * 0.6, s * 0.75, s * 0.7, s * 0.75, s * 1.05, -s * 0.35)
         cr.curve_to(s * 0.6, s * 0.2, -s * 0.5, s * 0.25, -s * 1.0, -s * 0.5)
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill_preserve()
         cr.set_source_rgb(*OUTLINE)
         cr.set_line_width(7)
@@ -111,7 +111,7 @@ def thing(cr, kind, c, s, t, mouth, blink):
         cr.move_to(0, s * 1.0)
         cr.curve_to(-s * 1.1, s * 0.2, -s * 0.9, -s * 0.8, 0, -s * 0.65)
         cr.curve_to(s * 0.9, -s * 0.8, s * 1.1, s * 0.2, 0, s * 1.0)
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill_preserve()
         cr.set_source_rgb(*OUTLINE)
         cr.set_line_width(7)
@@ -133,7 +133,7 @@ def thing(cr, kind, c, s, t, mouth, blink):
         cr.move_to(-s * 1.05, -s * 0.4)
         cr.arc_negative(0, -s * 0.4, s * 1.05, math.pi, 0)
         cr.close_path()
-        cr.set_source_rgb(*c)
+        shade_source(cr, c)
         cr.fill()
         cr.move_to(-s * 1.2, -s * 0.4)
         cr.arc_negative(0, -s * 0.4, s * 1.2, math.pi, 0)

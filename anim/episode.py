@@ -9,6 +9,7 @@ import soundfile as sf
 
 from . import audio as A
 from . import draw as D
+from . import music as MU
 from . import things as T
 from .topics import TOPICS
 
@@ -57,12 +58,11 @@ def grid(n, box, cols=None):
 # ------------------------------------------------------------------ timeline
 def build(topic, segs, short=False, seed=0, voice="af_heart"):
     bv = A.Voice(voice, 0.95)
-    iv = A.Voice("bf_emma", 0.9)
     clips, ev = [], dict(waves=[], jumps=[], segs=[], chapters=[], recap=None, party=None, title=None)
     t = 0.5
 
     def say(text, at, who="b", speed=None, gain=1.0):
-        s = (bv if who == "b" else iv).say(text, speed)
+        s = bv.say(text, speed)
         clips.append((at, s, gain, who))
         return at + len(s) / A.SR
 
@@ -100,6 +100,10 @@ def build(topic, segs, short=False, seed=0, voice="af_heart"):
                 sfx(A.sfx_pop, t + 0.35)
                 se["enter"] = t
                 t += 0.5
+            elif kind == "sound":
+                snd = A.animal_sound(st[1])
+                clips.append((t, snd, 1.0, "i"))
+                t += len(snd) / A.SR + 0.3
             elif kind in ("b", "i"):
                 t = say(st[1], t, kind, st[2] if len(st) > 2 else None) + 0.25
             elif kind == "think":
@@ -163,12 +167,34 @@ def build(topic, segs, short=False, seed=0, voice="af_heart"):
     mb = mix.mouth_track(FPS, n_frames, "b")
     mi = mix.mouth_track(FPS, n_frames, "i")
     tune = TOPICS[topic]["music"]
-    music = A.music_bouncy(total + 1, seed) if tune == "bouncy" else A.music_tune(total + 1, tune, seed)
-    wav = mix.finish(total, music)
-    return dict(total=total, ev=ev, mb=mb, mi=mi, wav=wav)
+    music, beat = MU.song(total + 1, seed, tune)
+    wav = mix.finish(total, music * 0.24)
+    return dict(total=total, ev=ev, mb=mb, mi=mi, wav=wav, beat=beat)
 
 
 # ------------------------------------------------------------------ drawing
+def beat_pulse(tl, t):
+    """1.0 right on each beat, decaying quickly; drives the dancing bounce."""
+    b = tl.get("beat")
+    if not b:
+        return 0.0
+    ph = (t / b["spb"]) % 1.0
+    return math.exp(-ph * 7)
+
+
+def item_alive(cr, it, x, y, s, t, tl, i=0, **kw):
+    """Learning items get the Dance Party arms + feet, moving on the beat."""
+    from .dance import limbs
+
+    spb = tl["beat"]["spb"] if tl.get("beat") else 0.5
+    if s > 20:
+        cr.save()
+        cr.translate(x, y)
+        limbs(cr, s, t / spb, i * 0.5, "bounce")
+        cr.restore()
+    T.draw_item(cr, it, x, y, s, t, **kw)
+
+
 def word_size(L, word, size=175):
     return min(size, int(L.word_max / (0.8 * max(1, len(word)))))
 
@@ -213,7 +239,13 @@ def draw_frame(cr, t, tl, L, topic, bg):
     if ev["party"] and 0 <= t - ev["party"] < 1.8:
         jump = abs(math.sin(math.pi * (t - ev["party"]) / 0.6))
     bx, by, bs = L.bear
+    pulse = beat_pulse(tl, t)
+    cr.save()
+    cr.translate(bx, by)
+    cr.scale(1 + 0.025 * pulse, 1 - 0.035 * pulse)
+    cr.translate(-bx, -by)
     D.bramble(cr, bx, by, bs, t, mouth=float(tl["mb"][fi]), wave=1.0 if waving else 0.0, blink=(t % 3.3) < 0.12, jump=jump)
+    cr.restore()
 
     # title
     if ev["title"] and ev["title"][1] and t < ev["title"][1] + 0.5:
@@ -246,7 +278,7 @@ def draw_frame(cr, t, tl, L, topic, bg):
                         mouth = float(tl["mi"][fi])
                     else:
                         sc *= 1 - 0.35 * D.ease_out((t - seg["pick"]) / 0.4)
-                T.draw_item(cr, it, px + (1 - enter) * W * 0.5 + shift, py + hop, msize * max(0.01, sc), t + j, mouth=mouth, blink=blink)
+                item_alive(cr, it, px + (1 - enter) * W * 0.5 + shift, py + hop, msize * max(0.01, sc), t + j, tl, j, mouth=mouth, blink=blink)
             q = 0.0
             for a, b in seg["thinks"]:
                 if a <= t < b:
@@ -261,7 +293,7 @@ def draw_frame(cr, t, tl, L, topic, bg):
                 hop = -abs(math.sin((t - ct) * 7)) * 25 * max(0, 1 - (t - ct) / 0.8)
                 if last_rev:
                     hop = -abs(math.sin((t - last_rev[0]) * 6 + j * 0.5)) * 20 * max(0, 1 - (t - last_rev[0]) / 1.5)
-                T.draw_item(cr, item, px + shift, py + hop, size * D.elastic((t - ct) / 0.5), t + j, blink=blink)
+                item_alive(cr, item, px + shift, py + hop, size * D.elastic((t - ct) / 0.5), t + j, tl, j, blink=blink)
                 D.big_word(cr, str(j + 1), "#ffffff", px + shift, py - size * 1.35, int(size * 0.7), (t - ct) / 0.4)
         else:
             enter = D.ease_out((t - seg["enter"]) / 0.5)
@@ -270,7 +302,7 @@ def draw_frame(cr, t, tl, L, topic, bg):
             if last_rev:
                 bounce = -abs(math.sin((t - last_rev[0]) * 6)) * 25 * max(0, 1 - (t - last_rev[0]) / 1.5)
             pop = D.elastic((t - seg["enter"] - 0.3) / 0.6) if t > seg["enter"] + 0.3 else 0.01
-            T.draw_item(cr, item, x, sy + bounce, L.item_s * max(0.01, pop), t, mouth=float(tl["mi"][fi]), blink=blink)
+            item_alive(cr, item, x, sy + bounce - 10 * pulse, L.item_s * max(0.01, pop) * (1 + 0.03 * pulse), t, tl, 0, mouth=float(tl["mi"][fi]), blink=blink)
             q = 0.0
             for a, b in seg["thinks"]:
                 if a <= t < b:
@@ -298,7 +330,7 @@ def draw_frame(cr, t, tl, L, topic, bg):
             if ev["party"] and t > ev["party"]:
                 hop = -abs(math.sin(t * 6 + k)) * 22
             it = rec["items"][k]
-            T.draw_item(cr, it, px, py + hop, size * D.elastic((t - pt) / 0.5), t + k, blink=((t + k) % 2.9) < 0.12)
+            item_alive(cr, it, px, py + hop, size * D.elastic((t - pt) / 0.5), t + k, tl, k, blink=((t + k) % 2.9) < 0.12)
             if topic == "counting":
                 D.big_word(cr, str(k + 1), "#ffffff", px, py + size * 1.3, int(size * 0.7), (t - pt) / 0.4)
     if ev["party"]:
@@ -308,29 +340,9 @@ def draw_frame(cr, t, tl, L, topic, bg):
 
 
 def render(tl, L, topic, bg, out):
-    wav_path = out + ".wav"
-    sf.write(wav_path, tl["wav"], A.SR)
-    ff = subprocess.Popen(
-        ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", f"{L.W}x{L.H}", "-r", str(FPS),
-         "-i", "-", "-i", wav_path, "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-         "-g", "60", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-shortest", "-movflags", "+faststart", out],
-        stdin=subprocess.PIPE,
-    )
-    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, L.W, L.H)
-    n = int(tl["total"] * FPS)
-    for i in range(n):
-        cr = cairo.Context(surf)
-        draw_frame(cr, i / FPS, tl, L, topic, bg)
-        surf.flush()
-        ff.stdin.write(bytes(surf.get_data()))
-        if i % 900 == 0:
-            print(f"    frame {i}/{n}", flush=True)
-    ff.stdin.close()
-    if ff.wait():
-        raise RuntimeError("ffmpeg failed")
-    import os
+    from .render import render as prender
 
-    os.remove(wav_path)
+    prender(lambda cr, t: draw_frame(cr, t, tl, L, topic, bg), L.W, L.H, tl["total"], tl["wav"], A.SR, out)
 
 
 def thumbnail(topic, items, bg, out, label=None):
