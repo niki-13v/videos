@@ -9,6 +9,6 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for tag in ep-20261120-0926 ep-20261120-0933; do
+          for tag in $(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '.[].tag_name' | grep -E '^ep-[0-9]{8}-[0-9]{4}$'); do
             gh release delete "$tag" --cleanup-tag --yes -R "${{ github.repository }}" && echo "deleted $tag" || true
           done
