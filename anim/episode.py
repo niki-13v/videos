@@ -58,8 +58,10 @@ def grid(n, box, cols=None):
 # ------------------------------------------------------------------ timeline
 def build(topic, segs, short=False, seed=0, voice="af_heart"):
     bv = A.Voice(voice, 0.95)
-    clips, ev = [], dict(waves=[], jumps=[], segs=[], chapters=[], recap=None, party=None, title=None)
-    t = 0.5
+    clips, ev = [], dict(waves=[], jumps=[], segs=[], chapters=[], recap=None, party=None, title=None,
+                         cheers=[], dances=[], irises=[])
+    rnd = random.Random(seed)
+    t = 0.15
 
     def say(text, at, who="b", speed=None, gain=1.0):
         s = bv.say(text, speed)
@@ -69,29 +71,41 @@ def build(topic, segs, short=False, seed=0, voice="af_heart"):
     def sfx(fn, at, gain=1.0):
         clips.append((at, fn(), gain, None))
 
-    if short:
-        t0 = t
-        sfx(A.sfx_boing, t)
-        t = say("Can you guess? Let's play!", t + 0.2)
-        ev["waves"].append((t0, t))
-        t += 0.2
-    else:
+    def cheer(at):
+        clips.append((at, A.kids_cheer(), 0.7, None))
+        ev["cheers"].append(at)
+
+    def dance_break(at, items, line):
+        ev["irises"].append(at)
+        sfx(A.sfx_boing, at)
+        t1 = say(line, at + 0.3)
+        cheer(t1 + 0.1)
+        end = t1 + 9.0
+        ev["dances"].append((at, end, items))
+        ev["chapters"].append((at, "Dance break!"))
+        return end + 0.3
+
+    if not short:
+        # cold open: title + music + Bramble in the first second, no long greeting
         sfx(A.sfx_boing, t)
         ev["title"] = (t, None)
         t0 = t
-        t = say("Hi friends! It's me, Bramble!", t + 0.4)
-        t = say(INTRO_LINE[topic], t + 0.25) + 0.5
-        ev["waves"].append((t0, t - 0.5))
+        t = say("Hi friends! " + INTRO_LINE[topic], t + 0.25) + 0.3
+        ev["waves"].append((t0, t))
         ev["title"] = (ev["title"][0], t)
-        t += 0.3
 
+    main_items = [s["item"] for s in segs if s.get("item")]
     for seg in segs:
         if seg.get("items") and not ev.get("round2"):
+            if not short:
+                t = dance_break(t, main_items[:5], "Dance break! Wiggle wiggle!")
             ev["round2"] = t
+            ev["irises"].append(t)
             sfx(A.sfx_boing, t)
             t = say("Now let's play a game!", t + 0.2) + 0.3
         se = dict(item=seg.get("item"), items=seg.get("items"), target=seg.get("target"), t0=t, enter=None, exit=None,
-                  end=None, thinks=[], reveals=[], counts=[], count=seg.get("count"), pick=None)
+                  end=None, thinks=[], reveals=[], counts=[], count=seg.get("count"), pick=None,
+                  entry=rnd.choice(["fly", "drop", "pop", "spin"]))
         ev["chapters"].append((t, seg["chapter"]))
         for st in seg["steps"]:
             kind = st[0]
@@ -113,11 +127,14 @@ def build(topic, segs, short=False, seed=0, voice="af_heart"):
                 t += st[1]
             elif kind == "reveal":
                 sfx(A.sfx_ding, t, 0.8)
+                if rnd.random() < 0.4:
+                    cheer(t + 0.05)
                 se["reveals"].append((t, st[1], st[2]))
                 ev["jumps"].append(t)
                 t += 0.1
             elif kind == "pick":
                 sfx(A.sfx_ding, t, 0.8)
+                cheer(t + 0.05)
                 se["pick"] = t
                 se["reveals"].append((t, st[1], st[2]))
                 ev["jumps"].append(t)
@@ -151,14 +168,21 @@ def build(topic, segs, short=False, seed=0, voice="af_heart"):
         ev["recap"] = rec
         t += 0.3
 
+    if not short:
+        t = dance_break(t, main_items[-5:], "Let's dance one more time!")
     sfx(A.sfx_ding, t)
     ev["party"] = t
     ev["jumps"].append(t)
-    t = say("Yay! You did it! Great job!", t + 0.1)
-    t0 = t
-    t = say("Bye bye, friends! See you next time!" if not short else "Watch more with Bramble!", t + 0.3)
-    ev["waves"].append((t0, t + 1.0))
-    total = t + 1.6
+    cheer(t + 0.05)
+    if short:
+        t = say("Yay! Again!", t + 0.3)
+        total = t + 0.6  # ends right as it began, so the Short loops smoothly
+    else:
+        t = say("Yay! You did it! Great job!", t + 0.3)
+        t0 = t
+        t = say("Bye bye, friends! See you next time!", t + 0.3)
+        ev["waves"].append((t0, t + 1.0))
+        total = t + 1.6
 
     mix = A.Mixer(total)
     for at, s, gain, who in clips:
@@ -209,11 +233,18 @@ def draw_frame(cr, t, tl, L, topic, bg):
         for rt, *_ in s["reveals"]:
             if 0 <= t - rt < 0.5:
                 punch = max(punch, 0.05 * (1 - (t - rt) / 0.5))
+    drift = 0.015 * (1 + math.sin(t * 0.35))  # slow camera breathing keeps the frame alive
     cr.save()
-    cr.translate(W / 2, H / 2)
-    cr.scale(1 + punch, 1 + punch)
+    cr.translate(W / 2 + 10 * math.sin(t * 0.23), H / 2)
+    cr.scale(1 + punch + drift, 1 + punch + drift)
     cr.translate(-W / 2, -H / 2)
     D.scene_bg(cr, bg, W, H, t)
+    dance = next((d for d in ev["dances"] if d[0] <= t < d[1]), None)
+    if dance:
+        seg = None
+        _spb = tl["beat"]["spb"] if tl.get("beat") else 0.5
+        D.rays(cr, (L.box[0] + L.box[2]) / 2, (L.box[1] + L.box[3]) / 2, t, RAINBOW[int(t / _spb / 4) % 6],
+               0.7 * min(1, (t - dance[0]) * 3) * min(1, (dance[1] - t) * 3))
 
     sx, sy = L.stage
     multi = None
@@ -238,14 +269,32 @@ def draw_frame(cr, t, tl, L, topic, bg):
             jump = math.sin(math.pi * dt / 0.6)
     if ev["party"] and 0 <= t - ev["party"] < 1.8:
         jump = abs(math.sin(math.pi * (t - ev["party"]) / 0.6))
+    spb = tl["beat"]["spb"] if tl.get("beat") else 0.5
+    if dance:
+        jump = abs(math.sin(math.pi * t / spb)) * 0.6
+    recent = any(0 <= t - jt < 0.9 for jt in ev["jumps"])
+    happy = recent or bool(dance) or (ev["party"] is not None and t >= ev["party"])
+    cheer = 1.0 if (dance or (ev["party"] is not None and 0 <= t - ev["party"] < 2.0) or any(0 <= t - jt < 0.7 for jt in ev["jumps"])) else 0.0
     bx, by, bs = L.bear
     pulse = beat_pulse(tl, t)
     cr.save()
     cr.translate(bx, by)
     cr.scale(1 + 0.025 * pulse, 1 - 0.035 * pulse)
     cr.translate(-bx, -by)
-    D.bramble(cr, bx, by, bs, t, mouth=float(tl["mb"][fi]), wave=1.0 if waving else 0.0, blink=(t % 3.3) < 0.12, jump=jump)
+    D.bramble(cr, bx, by, bs, t, mouth=float(tl["mb"][fi]), wave=1.0 if waving and not cheer else 0.0, blink=(t % 3.3) < 0.12, jump=jump, cheer=cheer, happy=happy and float(tl["mb"][fi]) < 0.15)
     cr.restore()
+
+    if dance:
+        from .dance import dancer
+
+        a, b, items = dance
+        pts, size = grid(len(items), L.box, cols=min(len(items), 3 if L.vertical else 5))
+        beat = (t - a) / spb
+        move = ["bounce", "sway", "wave", "alt"][int(beat / 8) % 4]
+        for i, ((px, py), it) in enumerate(zip(pts, items)):
+            drop = (1 - D.ease_out((t - a - i * 0.08) / 0.5)) * -H * 0.8
+            dancer(cr, it, px, py + drop, size * 1.3, t, beat, i, move)
+        D.confetti(cr, W * 0.6, H * 0.35, t - a - 0.3, int(a), RAINBOW)
 
     # title
     if ev["title"] and ev["title"][1] and t < ev["title"][1] + 0.5:
@@ -297,12 +346,33 @@ def draw_frame(cr, t, tl, L, topic, bg):
                 D.big_word(cr, str(j + 1), "#ffffff", px + shift, py - size * 1.35, int(size * 0.7), (t - ct) / 0.4)
         else:
             enter = D.ease_out((t - seg["enter"]) / 0.5)
-            x = sx + (1 - enter) * W * 0.5 + shift
+            entry = seg.get("entry", "fly")
+            spin_rot, ydrop = 0.0, 0.0
+            if entry == "fly":
+                x = sx + (1 - enter) * W * 0.5 + shift
+            else:
+                x = sx + shift
+            if entry == "drop":
+                p_ = max(0.0, min(1.0, (t - seg["enter"]) / 0.7))
+                ydrop = -H * 0.8 * (1 - D.elastic(p_)) if p_ < 1 else 0
+            elif entry == "spin":
+                spin_rot = (1 - enter) * 2 * math.pi
+            elif entry == "pop" and 0 <= t - seg["enter"] - 0.3 < 1.2:
+                D.confetti(cr, x, sy, t - seg["enter"] - 0.3, int(seg["enter"] * 7), ["#ffffff", "#fff176", "#80deea"])
             bounce = 0
             if last_rev:
                 bounce = -abs(math.sin((t - last_rev[0]) * 6)) * 25 * max(0, 1 - (t - last_rev[0]) / 1.5)
             pop = D.elastic((t - seg["enter"] - 0.3) / 0.6) if t > seg["enter"] + 0.3 else 0.01
-            item_alive(cr, item, x, sy + bounce - 10 * pulse, L.item_s * max(0.01, pop) * (1 + 0.03 * pulse), t, tl, 0, mouth=float(tl["mi"][fi]), blink=blink)
+            if entry in ("drop", "fly"):
+                pop = 1.0 if t > seg["enter"] else 0.01
+            if spin_rot:
+                cr.save()
+                cr.translate(x, sy)
+                cr.rotate(spin_rot)
+                cr.translate(-x, -sy)
+            item_alive(cr, item, x, sy + ydrop + bounce - 10 * pulse, L.item_s * max(0.01, pop) * (1 + 0.03 * pulse), t, tl, 0, mouth=float(tl["mi"][fi]), blink=blink)
+            if spin_rot:
+                cr.restore()
             q = 0.0
             for a, b in seg["thinks"]:
                 if a <= t < b:
@@ -319,7 +389,7 @@ def draw_frame(cr, t, tl, L, topic, bg):
             D.confetti(cr, cx, cy, t - rt, int(rt * 10), [col, "#ffffff", "#fdd835"])
 
     rec = ev["recap"]
-    if rec and t >= rec["t"]:
+    if rec and t >= rec["t"] and not dance:
         n = len(rec["items"])
         pts, size = grid(n, L.box, cols=5 if n > 8 else min(n, 4))
         for k, (px, py) in enumerate(pts):
@@ -337,6 +407,16 @@ def draw_frame(cr, t, tl, L, topic, bg):
         D.confetti(cr, W * 0.5, H * 0.3, t - ev["party"], 99, RAINBOW)
         D.confetti(cr, W * 0.8, H * 0.3, t - ev["party"] - 0.3, 98, RAINBOW)
     cr.restore()
+    for k, it in enumerate(ev["irises"]):
+        p = (t - it) / 0.55
+        if 0 <= p < 1:
+            r = D.ease_out(p) * math.hypot(W, H) * 0.6
+            cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+            cr.rectangle(0, 0, W, H)
+            cr.arc(W / 2, H / 2, max(1, r), 0, 2 * math.pi)
+            cr.set_source_rgb(*D.hexc(RAINBOW[k % 6]))
+            cr.fill()
+            cr.set_fill_rule(cairo.FILL_RULE_WINDING)
 
 
 def render(tl, L, topic, bg, out):

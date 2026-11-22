@@ -242,3 +242,27 @@ def animal_sound(kind):
     nz = np.where(np.abs(s) > 0.01)[0]
     s = s[nz[0] : nz[-1] + 1] if len(nz) else s
     return (s / (np.max(np.abs(s)) + 1e-9) * 0.9).astype(np.float32)
+
+
+_CHEER = {}
+
+
+def kids_cheer():
+    """A little crowd of kids shouting "Yay!" (several voices, pitched up, slightly offset)."""
+    if "c" in _CHEER:
+        return _CHEER["c"]
+    from kokoro_onnx import Kokoro
+
+    if "k" not in _VOICE_CACHE:
+        _VOICE_CACHE["k"] = Kokoro(*_ensure_models())
+    k = _VOICE_CACHE["k"]
+    parts = []
+    for i, (v, semis) in enumerate([("af_sky", 5), ("af_bella", 6), ("am_puck", 7), ("af_nicole", 5), ("af_heart", 7)]):
+        s, sr = k.create("jˈeɪ!", voice=v, speed=1.0, lang="en-us", is_phonemes=True)
+        s = np.interp(np.arange(0, len(s), sr / SR), np.arange(len(s)), s).astype(np.float32)
+        s = _resample_pitch(s, semis)
+        parts.append(np.concatenate([np.zeros(int(i * 0.035 * SR), np.float32), s]))
+    n = max(len(p) for p in parts)
+    out = sum(np.pad(p, (0, n - len(p))) for p in parts)
+    _CHEER["c"] = (out / (np.max(np.abs(out)) + 1e-9) * 0.75).astype(np.float32)
+    return _CHEER["c"]

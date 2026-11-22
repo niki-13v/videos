@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core libcairo2-dev pkg-config
           pip install -r requirements.txt
-      - name: Download recent episodes (until 30+ min)
+      - name: Download recent episodes (up to 60 min)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -35,10 +35,10 @@ jobs:
             gh release download "$tag" -p episode.mp4 -O "eps/$tag.mp4"
             d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "eps/$tag.mp4")
             total=$(python3 -c "print($total + $d)"); n=$((n+1))
-            python3 -c "import sys; sys.exit(0 if $total >= 1800 else 1)" && break
+            python3 -c "import sys; sys.exit(0 if $total >= 3600 else 1)" && break
           done
           echo "episodes=$n minutes=$(python3 -c "print(round($total/60,1))")"
-          [ "$n" -ge 5 ] || { echo "Not enough episodes yet"; exit 1; }
+          python3 -c "import sys; sys.exit(0 if $total >= 1500 else 1)" || { echo "Not enough episodes yet (need 25+ min)"; exit 1; }
       - name: Make compilation
         id: make
         run: python make_compilation.py $(ls eps/*.mp4 | sort) --out output/comp

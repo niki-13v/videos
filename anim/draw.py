@@ -85,7 +85,7 @@ def face(cr, x, y, s, mouth=0.0, blink=False, happy=True):
 BROWN, BELLY, PINK, SCARF = hexc("#a0672f"), hexc("#f6e0b5"), hexc("#f4a6b5"), hexc("#e8413c")
 
 
-def bramble(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0):
+def bramble(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0, cheer=0.0, happy=False):
     """Bramble the bear. (x, y) = feet centre, s = scale (1.0 ~ 520px tall)."""
     bob = math.sin(t * 2 * math.pi * 0.9) * 6 * s
     squash = 1 + 0.03 * math.sin(t * 2 * math.pi * 1.8)
@@ -106,9 +106,9 @@ def bramble(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0):
         ellipse(cr, dx, -22, 32, 18, BELLY, None)
     # left arm (resting)
     cr.set_source_rgb(*OUTLINE)
-    _arm(cr, -118, by - 10, 0.35 + 0.06 * math.sin(t * 3))
+    _arm(cr, -118, by - 10, 0.35 + 0.06 * math.sin(t * 3) + cheer * (2.3 + 0.2 * math.sin(t * 16)))
     # right arm (waves)
-    _arm(cr, 118, by - 10, -0.35 - wave * (2.2 + 0.35 * math.sin(t * 14)))
+    _arm(cr, 118, by - 10, -0.35 - max(wave * (2.2 + 0.35 * math.sin(t * 14)), cheer * (2.3 + 0.2 * math.sin(t * 16 + 1))))
     # body
     ellipse(cr, 0, by + 40, 145, 160, BROWN)
     ellipse(cr, 0, by + 65, 95, 110, BELLY, None)
@@ -121,7 +121,12 @@ def bramble(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0):
     ellipse(cr, 0, hy + 50, 78, 58, BELLY, None)
     # eyes
     for dx in (-58, 58):
-        if blink:
+        if happy:
+            cr.set_source_rgb(*OUTLINE)
+            cr.set_line_width(9)
+            cr.arc(dx, hy - 10, 20, 1.15 * math.pi, 1.85 * math.pi)
+            cr.stroke()
+        elif blink:
             cr.set_source_rgb(*OUTLINE)
             cr.set_line_width(9)
             cr.arc(dx, hy - 22, 20, 0.15 * math.pi, 0.85 * math.pi)

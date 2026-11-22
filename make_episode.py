@@ -72,7 +72,8 @@ def main():
         title, desc, tags = dance_meta(theme, minutes)
         playlist = "Dance Party (Baby Sensory)"
         print("2/4 thumbnail", flush=True)
-        DN.thumbnail(theme, seed, os.path.join(out, "thumbnail.jpg"))
+        for k, suffix in enumerate(["", "_b", "_c"]):
+            DN.thumbnail(theme, seed + k * 101, os.path.join(out, f"thumbnail{suffix}.jpg"))
         if not args.no_shorts:
             print("3/4 shorts", flush=True)
             for k in range(2):
@@ -93,7 +94,10 @@ def main():
         dull = {"#8d6e63"}  # brown reads muddy in small thumbnails
         thumb_items = [s["item"] for s in segs if s.get("item") and s["item"].get("color") not in dull]
         thumb_items.sort(key=lambda it: it.get("kind") in ("ball", "car"))
-        E.thumbnail(topic, thumb_items, bg, os.path.join(out, "thumbnail.jpg"))
+        others = [b for b in BACKGROUNDS if b != bg]
+        variants = [(thumb_items, bg), (thumb_items[3:] + thumb_items[:3], others[0]), (thumb_items[1::2] + thumb_items[::2], others[1])]
+        for (items, b), suffix in zip(variants, ["", "_b", "_c"]):
+            E.thumbnail(topic, items, b, os.path.join(out, f"thumbnail{suffix}.jpg"))
         if not args.no_shorts:
             print("3/4 shorts", flush=True)
             for k in range(2):
@@ -113,6 +117,7 @@ def main():
     with open(os.path.join(out, "UPLOAD.txt"), "w") as f:
         f.write(f"VIDEO (episode.mp4 + thumbnail.jpg)\n\nTITLE\n{title}\n\nDESCRIPTION\n{desc}\n\nTAGS\n{', '.join(tags)}\n\n")
         f.write(f"PLAYLIST\n{playlist}\n\n")
+        f.write("THUMBNAIL TEST\nYouTube Studio > video > Thumbnail > Test & compare > add thumbnail.jpg, thumbnail_b.jpg, thumbnail_c.jpg\n\n")
         for k, stitle in enumerate(shorts, 1):
             f.write(f"SHORT {k} (short{k}.mp4)\nTITLE\n{stitle[:100]}\n\n")
         f.write("SETTINGS FOR EVERY UPLOAD\n- Audience: Yes, it's made for kids\n- Altered or synthetic content: No\n")

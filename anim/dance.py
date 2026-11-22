@@ -31,6 +31,16 @@ def cast_pool(theme):
     return {"fruits": fruits, "animals": animals, "shapes": shapes, "mixed": fruits + animals + shapes[::4]}[theme]
 
 
+def contrast_palette(rnd, cast):
+    """Pick a background whose colour is clearly different from the dancers'."""
+    cols = [D.hexc(c.get("color", "#ffffff")) for c in cast if c.get("group") != "animal"]
+    def far(p):
+        a = D.hexc(p[0])
+        return all(sum((a[i] - c[i]) ** 2 for i in range(3)) ** 0.5 > 0.45 for c in cols)
+    options = [p for p in PALETTES if far(p)] or PALETTES
+    return rnd.choice(options)
+
+
 # ------------------------------------------------------------------ plan
 def plan(theme, minutes, seed, vertical=False):
     rnd = random.Random(seed)
@@ -65,7 +75,7 @@ def plan(theme, minutes, seed, vertical=False):
         end = sg["start"] + sg["length"] - 1.5
         while st < end:
             dur = spb * 32  # 8 bars
-            layout = rnd.choice(["one", "three", "three", "five", "pair", "conga", "bramble"])
+            layout = rnd.choice(["one", "three", "three", "five", "pair", "conga", "bramble", "giant", "ring", "peek"])
             if layout == "one":
                 cast = [rnd.choice(pool)]
             elif layout == "three":
@@ -76,12 +86,18 @@ def plan(theme, minutes, seed, vertical=False):
                 cast = rnd.sample(pool, 2)
             elif layout == "conga":
                 cast = [rnd.choice(pool)] * 6
+            elif layout == "giant":
+                cast = [rnd.choice(pool)]
+            elif layout == "ring":
+                cast = rnd.sample(pool, 6) if rnd.random() < 0.6 else [rnd.choice(pool)] * 6
+            elif layout == "peek":
+                cast = rnd.sample(pool, 4)
             else:
                 cast = [rnd.choice(pool), rnd.choice(pool)]
             moves = rnd.sample(MOVES[:-1], 2) if layout != "conga" else ["conga", "conga"]
-            word = cast[0]["name"] if layout in ("one", "three", "conga") and (len(set(c["name"] for c in cast)) == 1) else None
+            word = cast[0]["name"] if layout in ("one", "three", "conga", "giant", "ring") and (len(set(c["name"] for c in cast)) == 1) else None
             scenes.append(dict(t0=st, t1=min(st + dur, end), spb=spb, beat0=st, kind=layout, cast=cast, moves=moves,
-                               pal=rnd.choice(PALETTES), word=word))
+                               pal=contrast_palette(rnd, cast), word=word, pattern=rnd.choice(["rays", "rays", "dots", "stripes", "checks"])))
             if word:
                 s = voice.say(f"{word.capitalize()}!", 1.0)
                 mix.add(st + spb * 0.5, s, 1.0, "b")
@@ -164,7 +180,7 @@ def dancer(cr, item, x, y, s, t, beat, i, move):
     else:
         limbs(cr, s, beat, i * 0.5, move)
         T.draw_item(cr, item, 0, 0, s, t + i, mouth=0.45 * pulse if int(beat / 2) % 2 == 0 else 0.0,
-                    blink=((t + i * 0.7) % 3.1) < 0.12)
+                    blink=((t + i * 0.7) % 3.1) < 0.12 or (int(beat) % 8 == 7))
     cr.restore()
 
 
@@ -175,10 +191,37 @@ def background(cr, W, H, t, sc, beat):
     g.add_color_stop_rgb(1, *D.hexc(b))
     cr.set_source(g)
     cr.paint()
+    pattern = sc.get("pattern", "rays")
+    if pattern == "dots":
+        off = (t * 30) % 120
+        for yy in range(-120, H + 120, 120):
+            for xx in range(-120, W + 120, 120):
+                sx = xx + off + (60 if (yy // 120) % 2 else 0)
+                cr.arc(sx, yy + off * 0.5, 22, 0, 2 * math.pi)
+                cr.set_source_rgba(1, 1, 1, 0.12)
+                cr.fill()
+    elif pattern == "stripes":
+        cr.save()
+        cr.translate(W / 2, H / 2)
+        cr.rotate(-0.5)
+        off = (t * 60) % 160
+        for xx in range(-W * 2, W * 2, 160):
+            cr.rectangle(xx + off, -W * 2, 70, W * 4)
+        cr.set_source_rgba(1, 1, 1, 0.09)
+        cr.fill()
+        cr.restore()
+    elif pattern == "checks":
+        off = (t * 25) % 200
+        for yy in range(-200, H + 200, 100):
+            for xx in range(-200, W + 200, 100):
+                if ((xx + yy) // 100) % 2 == 0:
+                    cr.rectangle(xx + off, yy + off, 100, 100)
+        cr.set_source_rgba(1, 1, 1, 0.07)
+        cr.fill()
     cr.save()
     cr.translate(W / 2, H * 0.45)
     cr.rotate(t * 0.15)
-    for k in range(20):
+    for k in range(20 if pattern == "rays" else 0):
         cr.move_to(0, 0)
         cr.arc(0, 0, max(W, H) * 1.3, k * math.pi / 10, k * math.pi / 10 + math.pi / 20)
         cr.close_path()
@@ -234,6 +277,21 @@ def positions(kind, n, W, H, beat, vertical):
         if vertical:
             return [(W * 0.25, H * 0.3), (W * 0.75, H * 0.3), (W * 0.5, H * 0.45), (W * 0.25, H * 0.62), (W * 0.75, H * 0.62)], W * 0.12
         return [(W * (0.12 + 0.19 * i), cy + (0 if i % 2 else -H * 0.06)) for i in range(5)], H * 0.1
+    if kind == "giant":
+        return [(W / 2, cy)], (H * 0.3 if not vertical else W * 0.38)
+    if kind == "ring":
+        rx, ry = (W * 0.3, H * 0.27) if not vertical else (W * 0.33, H * 0.18)
+        ang = beat * math.pi / 8
+        return [(W / 2 + rx * math.cos(ang + i * math.pi / 3), cy + ry * math.sin(ang + i * math.pi / 3)) for i in range(n)], \
+            (H * 0.09 if not vertical else W * 0.11)
+    if kind == "peek":
+        out = []
+        for i in range(n):
+            phase = (beat / 2 + i * 0.5) % 2  # each pops up for one beat, in turn
+            up = max(0.0, math.sin(math.pi * min(1.0, phase))) if phase < 1 else 0.0
+            x = W * (0.2 + 0.2 * i) if not vertical else W * (0.2 + 0.2 * i)
+            out.append((x, H * 1.05 - up * H * (0.45 if not vertical else 0.35)))
+        return out, H * 0.13 if not vertical else W * 0.12
     if kind == "conga":
         span = W + W * 0.9
         out = []
@@ -259,13 +317,17 @@ def draw_frame(cr, t, P, W, H, vertical):
             D.word_row(cr, l1, cols, W / 2, H * (0.16 if not vertical else 0.14), 150 if not vertical else 130, t, t / 0.8)
             D.word_row(cr, l2, cols[1:] + cols[:1], W / 2, H * (0.86 if not vertical else 0.84), 150 if not vertical else 110, t, t / 0.8 - 0.3)
         return
+    zoom = 1 + 0.025 * math.exp(-((beat % 4.0)) * 3)
+    cr.translate(W / 2, H / 2)
+    cr.scale(zoom, zoom)
+    cr.translate(-W / 2, -H / 2)
     progress = (t - sc["t0"]) / max(0.1, sc["t1"] - sc["t0"])
     move = sc["moves"][0] if progress < 0.5 else sc["moves"][1]
     pts, size = positions(sc["kind"], len(sc["cast"]), W, H, beat, vertical)
     enter = D.ease_out((t - sc["t0"]) / 0.6)
     cast = sc["cast"] if sc["kind"] != "bramble" else [dict(group="bramble"), sc["cast"][0]]
     for i, ((x, y), item) in enumerate(zip(pts, cast)):
-        drop = (1 - enter) * -H * 0.8 if sc["kind"] != "conga" else 0
+        drop = (1 - enter) * -H * 0.8 if sc["kind"] not in ("conga", "peek", "ring") else 0
         dancer(cr, item, x, y + drop, size, t, beat, i, move)
     if sc["word"]:
         for wt in (0.5, 16.5):
