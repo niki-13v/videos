@@ -333,6 +333,10 @@ def rays(cr, x, y, t, color, alpha):
     """Spinning sunburst behind a revealed object."""
     if alpha <= 0:
         return
+    from . import sprites
+
+    if sprites.available():
+        alpha *= 0.55  # 3D sets are busier; keep the burst subtle
     c = tuple(0.25 * v + 0.75 for v in hexc(color))  # near-white tint: bright over any background
     cr.save()
     cr.translate(x, y)
