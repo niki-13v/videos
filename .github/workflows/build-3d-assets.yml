@@ -1,0 +1,61 @@
+name: Build 3D assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Asset version tag (e.g. assets3d-v1)"
+        required: true
+        default: "assets3d-v1"
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        part:
+          - "--group bramble,animals,fruits"
+          - "--group shapes --colors red,blue,yellow,green"
+          - "--group shapes --colors orange,purple,pink,brown"
+          - "--group things --colors red,blue,yellow,green"
+          - "--group things --colors orange,purple,pink,brown"
+          - "--group bg"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official Blender (includes denoiser)
+        run: |
+          curl -sSL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz -o b.tar.xz
+          tar -xf b.tar.xz && mv blender-4.2.3-linux-x64 blender
+          sudo apt-get update -qq && sudo apt-get install -y -qq libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libxkbcommon0 libsm6
+      - name: Render
+        run: |
+          RES=512; SAMPLES=64
+          case "${{ matrix.part }}" in *bg*) RES=512; SAMPLES=96;; esac
+          ./blender/blender -b -P anim3d/assets.py -- --out out ${{ matrix.part }} --res $RES --samples $SAMPLES --denoise 2>&1 | grep -E "SPRITE|Error|Traceback" || true
+          ls out | wc -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ strategy.job-index }}
+          path: out/
+
+  publish:
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+      - name: Zip and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets3d && cp parts/*/*.png assets3d/
+          echo "sprites: $(ls assets3d | wc -l)"
+          (cd assets3d && zip -q -r ../assets3d.zip .)
+          gh release create "${{ inputs.version }}" assets3d.zip -R "${{ github.repository }}" \
+            --title "3D assets ${{ inputs.version }}" --notes "Rendered 3D sprites and backgrounds used by the video pipeline."
