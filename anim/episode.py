@@ -382,8 +382,10 @@ def draw_frame(cr, t, tl, L, topic, bg):
             word = last_rev[1].upper() if not last_rev[1][:1].isdigit() else last_rev[1]
             size = word_size(L, word) if not seg["count"] else 230
             wx = (sx if not L.vertical else W / 2) if not multi else multi[seg["target"]][0]
-            wx = min(max(wx, L.word_max / 2 * 0.0 + (W * 0.42 if not L.vertical else W * 0.3)), W * 0.85 if not L.vertical else W * 0.7) if multi else wx
-            D.big_word(cr, word, last_rev[2], wx + shift, L.word_y, size if not multi else min(size, 150), (t - last_rev[0]) / 0.7)
+            fsize = size if not multi else min(size, 150)
+            half = 0.4 * fsize * len(word) + 40  # approx half-width of the word incl. outline
+            wx = min(max(wx, half + 20), W - half - 20)
+            D.big_word(cr, word, last_rev[2], wx + shift, L.word_y, fsize, (t - last_rev[0]) / 0.7)
         cx, cy = multi[seg["target"]] if multi else (sx, sy)
         for rt, _, col in seg["reveals"]:
             D.confetti(cr, cx, cy, t - rt, int(rt * 10), [col, "#ffffff", "#fdd835"])
