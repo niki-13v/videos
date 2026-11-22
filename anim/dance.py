@@ -324,6 +324,10 @@ def draw_frame(cr, t, P, W, H, vertical):
     progress = (t - sc["t0"]) / max(0.1, sc["t1"] - sc["t0"])
     move = sc["moves"][0] if progress < 0.5 else sc["moves"][1]
     pts, size = positions(sc["kind"], len(sc["cast"]), W, H, beat, vertical)
+    from . import sprites
+
+    if sprites.available():
+        size *= 1.25  # 3D sprites carry padding; bring them up to the 2D size
     enter = D.ease_out((t - sc["t0"]) / 0.6)
     cast = sc["cast"] if sc["kind"] != "bramble" else [dict(group="bramble"), sc["cast"][0]]
     for i, ((x, y), item) in enumerate(zip(pts, cast)):

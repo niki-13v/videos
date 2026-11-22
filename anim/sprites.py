@@ -17,14 +17,54 @@ ORTHO = {"thing_balloon": (3.8, 0.3), "thing_car": (3.8, 0.0), "shape": (3.4, 0.
 _CACHE = {}
 
 
+_OUTLINED = {}
+
+
+def _outlined(name, surf):
+    """Same sprite with a soft white 'sticker' border, so characters pop on any background."""
+    if name in _OUTLINED:
+        return _OUTLINED[name]
+    w, h = surf.get_width(), surf.get_height()
+    r = max(2, w // 64)
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    cr = cairo.Context(out)
+    cr.set_source_rgba(1, 1, 1, 1)
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        cr.mask_surface(surf, r * math.cos(a), r * math.sin(a))
+    cr.set_source_surface(surf, 0, 0)
+    cr.paint()
+    _OUTLINED[name] = out
+    return out
+
+
 def available():
     return os.path.isdir(ROOT) and os.path.exists(os.path.join(ROOT, "bramble_body.png"))
+
+
+def _load_vivid(path):
+    """Load a sprite with a little extra colour and brightness (toddler-friendly pop)."""
+    import io
+
+    from PIL import Image, ImageEnhance
+
+    im = Image.open(path).convert("RGBA")
+    a = im.getchannel("A")
+    rgb = ImageEnhance.Color(im.convert("RGB")).enhance(1.3)
+    rgb = ImageEnhance.Brightness(rgb).enhance(1.08)
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.05)
+    im = rgb.convert("RGBA")
+    im.putalpha(a)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    buf.seek(0)
+    return cairo.ImageSurface.create_from_png(buf)
 
 
 def _surface(name):
     if name not in _CACHE:
         path = os.path.join(ROOT, name + ".png")
-        _CACHE[name] = cairo.ImageSurface.create_from_png(path) if os.path.exists(path) else None
+        _CACHE[name] = _load_vivid(path) if os.path.exists(path) else None
     return _CACHE[name]
 
 
@@ -66,6 +106,7 @@ def draw_item(cr, item, x, y, s, mouth=0.0, blink=False):
         if surf is None:
             return False
     ortho, offset = _family(name)
+    surf = _outlined(name, surf)
     res = surf.get_width()
     k = s * ortho / res  # model unit radius 1 -> s pixels
     cr.save()
