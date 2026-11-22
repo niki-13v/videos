@@ -1,6 +1,6 @@
 # Working with the owner
 
-- Keep instructions short: numbered steps, one action per line, no background explanation unless asked.
+- Keep every reply short enough to read at a glance: a few lines, numbered steps, one action per line, no background explanation unless asked. Never long summaries or recaps.
 - Lead with the answer or the next action. Skip recaps of what was already said.
 - The owner runs this as a side hustle and wants it as automated and free as possible; mention costs only when a paid option is clearly worth it.
 
