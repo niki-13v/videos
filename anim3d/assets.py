@@ -228,7 +228,8 @@ def _look(d):
     return (math.atan2(math.hypot(x, y), -z) if False else math.pi / 2 - math.atan2(z, math.hypot(x, y)), 0, math.atan2(x, -y) * -1)
 
 
-def camera(center_z, ortho, res_x=RES, res_y=RES):
+def camera(center_z, ortho, res_x=None, res_y=None):
+    res_x, res_y = res_x or RES, res_y or RES
     scene = bpy.context.scene
     cam = bpy.data.objects["RIG_cam"]
     cam.data.type = "ORTHO"
@@ -619,10 +620,13 @@ def sprite(name, builder, ortho=3.2, center=C):
 def main():
     groups = ["bramble", "animals", "fruits", "shapes", "things", "bg"] if GROUP == "all" else GROUP.split(",")
     if "bramble" in groups:
+        global RES
+        RES = RES * 2  # Bramble is shown big, so render him sharper
         for part in ("body", "armL", "armR"):
             sprite(f"bramble_{part}", lambda p=part: build_bramble(p), ortho=3.6, center=1.45)
         for state in ("idle", "blink", "talk", "happy"):
             sprite(f"bramble_head_{state}", lambda s=state: build_bramble("head", s), ortho=3.6, center=1.45)
+        RES = RES // 2
     if "animals" in groups:
         for kind in ["cow", "pig", "duck", "chick", "cat", "dog", "sheep", "frog", "lion"]:
             for st in FACE_STATES:

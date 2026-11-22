@@ -27,17 +27,22 @@ jobs:
           - "--group bg"
     steps:
       - uses: actions/checkout@v4
-      - name: Install official Blender (includes denoiser)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Blender as a Python module (official, includes denoiser)
         run: |
-          curl -sSL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz -o b.tar.xz
-          tar -xf b.tar.xz && mv blender-4.2.3-linux-x64 blender
           sudo apt-get update -qq && sudo apt-get install -y -qq libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libxkbcommon0 libsm6
+          pip install bpy==4.2.0
+          python -c "import bpy; print('bpy', bpy.app.version_string)"
       - name: Render
         run: |
           RES=512; SAMPLES=64
           case "${{ matrix.part }}" in *bg*) RES=512; SAMPLES=96;; esac
-          ./blender/blender -b -P anim3d/assets.py -- --out out ${{ matrix.part }} --res $RES --samples $SAMPLES --denoise 2>&1 | grep -E "SPRITE|Error|Traceback" || true
-          ls out | wc -l
+          set -o pipefail
+          python anim3d/assets.py -- --out out ${{ matrix.part }} --res $RES --samples $SAMPLES --denoise 2>&1 | grep -E "SPRITE|Error|Traceback"
+          echo "rendered: $(ls out | wc -l)"
+          [ "$(ls out | wc -l)" -gt 0 ]
       - uses: actions/upload-artifact@v4
         with:
           name: part-${{ strategy.job-index }}

@@ -331,6 +331,16 @@ def animal(cr, kind, s, t, mouth, blink):
 
 def draw_item(cr, item, x, y, s, t, mouth=0.0, blink=False):
     """item = dict(group=..., kind=..., color=hex). Wobbles gently."""
+    from . import sprites
+
+    if sprites.available():
+        cr.save()
+        cr.translate(x, y)
+        cr.rotate(math.sin(t * 4) * 0.04)
+        ok = sprites.draw_item(cr, item, 0, 0, s, mouth, blink)
+        cr.restore()
+        if ok:
+            return
     cr.save()
     cr.translate(x, y)
     cr.rotate(math.sin(t * 4) * 0.04)

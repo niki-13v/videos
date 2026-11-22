@@ -86,6 +86,14 @@ BROWN, BELLY, PINK, SCARF = hexc("#a0672f"), hexc("#f6e0b5"), hexc("#f4a6b5"), h
 
 
 def bramble(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0, cheer=0.0, happy=False):
+    from . import sprites
+
+    if sprites.available():
+        return sprites.bramble(cr, x, y, s, t, mouth, wave, blink, jump, cheer, happy)
+    return _bramble2d(cr, x, y, s, t, mouth, wave, blink, jump, cheer, happy)
+
+
+def _bramble2d(cr, x, y, s, t, mouth=0.0, wave=0.0, blink=False, jump=0.0, cheer=0.0, happy=False):
     """Bramble the bear. (x, y) = feet centre, s = scale (1.0 ~ 520px tall)."""
     bob = math.sin(t * 2 * math.pi * 0.9) * 6 * s
     squash = 1 + 0.03 * math.sin(t * 2 * math.pi * 1.8)
@@ -518,6 +526,19 @@ def bg_playroom(cr, w, h, t):
 
 
 def scene_bg(cr, kind, w, h, t):
+    from . import sprites
+
+    if sprites.available() and sprites.background(cr, kind, w, h):
+        # 3D set; keep only small moving life on top
+        if kind == "beach":
+            bird(cr, (w * 0.3 + t * 60) % (w + 200) - 100, h * 0.15 + 10 * math.sin(t), 1.0, t)
+            bird(cr, (w * 0.5 + t * 50) % (w + 200) - 100, h * 0.2 + 10 * math.sin(t + 1), 0.8, t + 0.3)
+        elif kind != "playroom":
+            for k, col in enumerate(["#ff7043", "#ab47bc", "#29b6f6"]):
+                bx = w * (0.3 + 0.25 * k) + 160 * math.sin(t * 0.5 + k * 2)
+                by = h * (0.25 + 0.08 * k) + 60 * math.sin(t * 1.3 + k)
+                butterfly(cr, bx, by, 1.0, t + k, col)
+        return
     if kind == "beach":
         bg_beach(cr, w, h, t)
     elif kind == "playroom":
