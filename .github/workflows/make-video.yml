@@ -57,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release download assets3d-v1 -p assets3d.zip -R "${{ github.repository }}"; then
+          if gh release download assets3d-v2 -p assets3d.zip -R "${{ github.repository }}"; then
             mkdir -p assets3d && unzip -q -o assets3d.zip -d assets3d && echo "3D sprites: $(ls assets3d | wc -l)"
           else
             echo "No 3D assets yet, using 2D drawings"

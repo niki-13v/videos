@@ -196,7 +196,12 @@ def setup(kind="sprite"):
     scene.cycles.samples = SAMPLES
     scene.cycles.use_denoising = DENOISE
     scene.view_settings.view_transform = "Standard"
-    scene.view_settings.look = "None"
+    looks = [l.identifier for l in scene.view_settings.bl_rna.properties["look"].enum_items] if False else None
+    try:
+        scene.view_settings.look = "Medium High Contrast"  # punchier, more saturated toy look
+    except TypeError:
+        scene.view_settings.look = "None"
+    scene.view_settings.exposure = 0.25 if kind == "sprite" else 0.0
     scene.render.film_transparent = kind == "sprite"
     scene.render.image_settings.color_mode = "RGBA" if kind == "sprite" else "RGB"
     if not scene.world:
@@ -204,7 +209,7 @@ def setup(kind="sprite"):
     w = scene.world
     w.use_nodes = True
     w.node_tree.nodes["Background"].inputs[0].default_value = (*srgb("#cfe9ff"), 1)
-    w.node_tree.nodes["Background"].inputs[1].default_value = 0.8
+    w.node_tree.nodes["Background"].inputs[1].default_value = 0.55
     for name, loc, energy, size in [("RIG_key", (-3, -5, 6), 700, 4), ("RIG_fill", (4, -4, 2), 250, 5), ("RIG_rim", (0, 5, 5), 500, 4)]:
         if name not in bpy.data.objects:
             ld = bpy.data.lights.new(name, "AREA")
@@ -214,6 +219,8 @@ def setup(kind="sprite"):
             lo.location = loc
             direction = [-v for v in loc]
             lo.rotation_euler = _look(direction)
+    for name in ("RIG_key", "RIG_fill", "RIG_rim"):
+        bpy.data.objects[name].hide_render = kind != "sprite"  # character lights only for sprites
     if "RIG_cam" not in bpy.data.objects:
         cd = bpy.data.cameras.new("RIG_cam")
         cd.type = "ORTHO"
@@ -537,13 +544,13 @@ def build_bg(kind):
         if n.type not in ("BACKGROUND", "OUTPUT_WORLD"):
             nt.nodes.remove(n)
     coord, sep, ramp = nt.nodes.new("ShaderNodeTexCoord"), nt.nodes.new("ShaderNodeSeparateXYZ"), nt.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = (*srgb("#d8f3ff"), 1)
-    ramp.color_ramp.elements[1].color = (*srgb("#4fb3f5"), 1)
-    ramp.color_ramp.elements[1].position = 0.55
+    ramp.color_ramp.elements[0].color = (*srgb("#b5e6ff"), 1)
+    ramp.color_ramp.elements[1].color = (*srgb("#2f9be8"), 1)
+    ramp.color_ramp.elements[1].position = 0.6
     nt.links.new(coord.outputs["Generated"], sep.inputs[0])
     nt.links.new(sep.outputs["Z"], ramp.inputs[0])
     nt.links.new(ramp.outputs[0], nt.nodes["Background"].inputs[0])
-    nt.nodes["Background"].inputs[1].default_value = 1.0
+    nt.nodes["Background"].inputs[1].default_value = 0.85
     cam = bpy.data.objects["RIG_cam"]
     cam.data.type = "PERSP"
     cam.data.lens = 35
@@ -573,7 +580,7 @@ def build_bg(kind):
             blob((x, y, 0.07), (0.09, 0.09, 0.05), mat(rnd.choice(petals), 0.6), seg=12)
     elif base == "beach":
         bpy.ops.mesh.primitive_plane_add(size=120, location=(0, 0, 0))
-        bpy.context.object.data.materials.append(mat("#ffe0a3", 0.9, key="sand"))
+        bpy.context.object.data.materials.append(mat("#f2c27b", 0.95, 0, 0.0, key="sand"))
         bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 108, 0.03))
         bpy.context.object.data.materials.append(mat("#29b6f6", 0.08, 0, 0.9, key="sea"))
         for x, y in [(-6, 6), (7, 9)]:
@@ -589,20 +596,22 @@ def build_bg(kind):
         blob((3.5, 4, 0.3), (0.6, 0.6, 0.35), mat("#ff7043", 0.5, key="bucket"))
     elif base == "playroom":
         bpy.ops.mesh.primitive_plane_add(size=60)
-        bpy.context.object.data.materials.append(mat("#d7a86e", 0.6, key="floor"))
+        bpy.context.object.data.materials.append(mat("#d7a86e", 0.7, 0, 0.1, key="floor"))
         bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 8, 10), rotation=(math.pi / 2, 0, 0))
-        bpy.context.object.data.materials.append(mat("#fff3e0", 0.9, key="wall"))
+        bpy.context.object.data.materials.append(mat("#ffd7a8", 1.0, 0, 0.0, key="wall"))
         blob((0, 1, 0.02), (5, 2.2, 0.02), mat("#ce93d8", 0.9, key="rug"))
         for k, c in enumerate(["#e53935", "#1e88e5", "#fdd835", "#43a047", "#8e24aa"]):
             rounded_box((-6 + k * 0.75, 4, 0.35), (0.65, 0.65, 0.65), mat(c, 0.4), 0.08)
         rounded_box((6, 5, 1.0), (2.2, 0.6, 2.0), mat("#a1887f", 0.6, key="shelf"), 0.06)
         blob((5.5, 4.4, 2.3), (0.35, 0.35, 0.35), mat("#1e88e5", 0.3))
         blob((6.5, 4.4, 2.3), (0.35, 0.35, 0.35), mat("#ffeb3b", 0.3))
-        rounded_box((-6, 7.9, 4.5), (3, 0.1, 2.4), mat("#81d4fa", 0.1, 0, 0.6, 0.6, key="window"), 0.05)
+        rounded_box((-6, 7.9, 4.5), (3, 0.1, 2.4), mat("#81d4fa", 0.1, 0, 0.6, 0.2, key="window"), 0.05)
     bpy.ops.object.light_add(type="SUN", rotation=(math.radians(50), math.radians(10), math.radians(-30)))
-    bpy.context.object.data.energy = 2.6
+    bpy.context.object.data.energy = 1.5
     bpy.context.object.data.angle = math.radians(8)
+    scene.view_settings.exposure = 0.0
     scene.camera = cam
+    scene.render.resolution_percentage = int(arg("--bgpercent", "100"))
     render(f"bg_{kind}")
 
 
